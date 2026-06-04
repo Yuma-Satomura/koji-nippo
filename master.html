@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業者マスタ管理</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <h1>👷 業者マスタ管理</h1>
+  <div class="header-actions">
+    <a href="genba.html" class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);">← 現場管理</a>
+    <button class="btn btn-secondary btn-sm" onclick="Auth.logout();location.href='admin.html'">ログアウト</button>
+  </div>
+</header>
+
+<div class="page-wrapper">
+  <div class="card" id="site-info-card">
+    <div id="site-title" class="card-title">業者マスタ読み込み中...</div>
+    <p id="site-info" class="text-muted" style="font-size:13px;"></p>
+  </div>
+
+  <!-- Add vendor form -->
+  <div class="card">
+    <div class="card-title" id="form-title">業者を追加</div>
+    <input type="hidden" id="edit-id">
+    <div class="flex-row">
+      <div class="form-group" style="flex:1;margin-bottom:0;">
+        <input type="text" id="f-name" placeholder="業者名を入力" style="font-size:16px;">
+      </div>
+      <button class="btn btn-primary" onclick="saveVendor()">追加</button>
+      <button class="btn btn-secondary" id="cancel-btn" style="display:none" onclick="cancelEdit()">キャンセル</button>
+    </div>
+  </div>
+
+  <!-- Copy from another site -->
+  <div class="card">
+    <div class="card-title">他の現場からコピー</div>
+    <div class="flex-row">
+      <div class="form-group" style="flex:1;margin-bottom:0;">
+        <select id="copy-from">
+          <option value="">コピー元の現場を選択...</option>
+        </select>
+      </div>
+      <button class="btn btn-outline" onclick="copyFrom()">コピー</button>
+    </div>
+  </div>
+
+  <!-- Vendor list -->
+  <div class="card">
+    <div class="flex-between mb-8">
+      <div class="card-title" style="margin-bottom:0">登録業者一覧</div>
+      <span class="badge badge-info" id="vendor-count">0件</span>
+    </div>
+    <div id="vendor-list"></div>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) { /* redirect */ }
+
+const params = new URLSearchParams(location.search);
+const siteNumber = params.get('site') || '';
+let currentSite = null;
+
+function init() {
+  // Find site by number
+  const sites = Storage.getSites();
+  currentSite = sites.find(s => s.number === siteNumber) || null;
+
+  if (!currentSite) {
+    document.getElementById('site-title').textContent = '現場が見つかりません';
+    return;
+  }
+
+  document.title = '業者マスタ - ' + currentSite.name;
+  document.getElementById('site-title').textContent = '【' + currentSite.number + '】' + currentSite.name;
+  document.getElementById('site-info').textContent = currentSite.client ? '顧客: ' + currentSite.client : '';
+
+  // Populate copy-from dropdown
+  const sel = document.getElementById('copy-from');
+  sites.filter(s => s.id !== currentSite.id).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.number;
+    opt.textContent = '【' + s.number + '】' + s.name;
+    sel.appendChild(opt);
+  });
+
+  render();
+}
+
+function render() {
+  if (!currentSite) return;
+  const vendors = Storage.getVendors(currentSite.number);
+  document.getElementById('vendor-count').textContent = vendors.length + '件';
+  const list = document.getElementById('vendor-list');
+  if (vendors.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">👷</div><p>業者が登録されていません</p></div>';
+    return;
+  }
+  list.innerHTML = vendors.map((v, i) => `
+    <div class="status-item" style="cursor:default;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="color:#94a3b8;font-size:13px;">${i+1}</span>
+        <span class="vendor-name">${escHtml(v.name)}</span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="editVendor('${v.id}')">編集</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteVendor('${v.id}')">削除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function saveVendor() {
+  if (!currentSite) return;
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { alert('業者名を入力してください'); return; }
+
+  const id = document.getElementById('edit-id').value || Storage.uuid();
+  Storage.saveVendor(currentSite.number, { id, name });
+  App.toast('業者を保存しました');
+  cancelEdit();
+  render();
+}
+
+function editVendor(id) {
+  if (!currentSite) return;
+  const vendor = Storage.getVendors(currentSite.number).find(v => v.id === id);
+  if (!vendor) return;
+  document.getElementById('edit-id').value = vendor.id;
+  document.getElementById('f-name').value = vendor.name;
+  document.getElementById('form-title').textContent = '業者を編集';
+  document.getElementById('cancel-btn').style.display = '';
+  document.getElementById('f-name').focus();
+}
+
+function cancelEdit() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('f-name').value = '';
+  document.getElementById('form-title').textContent = '業者を追加';
+  document.getElementById('cancel-btn').style.display = 'none';
+}
+
+function deleteVendor(id) {
+  if (!confirm('この業者を削除しますか？')) return;
+  Storage.deleteVendor(currentSite.number, id);
+  App.toast('削除しました', 'warning');
+  render();
+}
+
+function copyFrom() {
+  const fromNumber = document.getElementById('copy-from').value;
+  if (!fromNumber) { alert('コピー元を選択してください'); return; }
+  if (!confirm('【' + fromNumber + '】の業者マスタをコピーしますか？\n（重複する業者名はスキップされます）')) return;
+
+  const srcVendors = Storage.getVendors(fromNumber);
+  const dstVendors = Storage.getVendors(currentSite.number);
+  const existing = new Set(dstVendors.map(v => v.name));
+  let added = 0;
+  srcVendors.forEach(v => {
+    if (!existing.has(v.name)) {
+      dstVendors.push({ id: Storage.uuid(), name: v.name });
+      added++;
+    }
+  });
+  Storage.saveVendors(currentSite.number, dstVendors);
+  App.toast(added + '件の業者をコピーしました');
+  render();
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Allow Enter key in input
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('f-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveVendor();
+  });
+});
+
+init();
+</script>
+</body>
+</html>

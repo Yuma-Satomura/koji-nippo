@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1e3a8a">
+<title>職人入力</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 2px solid #e2e8f0;
+  background: white;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all .15s;
+  margin-bottom: 12px;
+}
+.mode-btn:active { transform: scale(.98); }
+.mode-btn.today  { border-color: #f59e0b; background: #fffbeb; }
+.mode-btn.next   { border-color: #3b82f6; background: #eff6ff; }
+.mode-btn .mode-icon { font-size: 32px; flex-shrink: 0; }
+.mode-btn .mode-text h3 { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+.mode-btn .mode-text p  { font-size: 12px; color: #64748b; }
+.next-date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ndt-btn {
+  padding: 14px 8px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: all .15s;
+}
+.ndt-btn:active { transform: scale(.97); }
+.ndt-btn.selected { border-color: #1e40af; background: #1e40af; color: white; }
+.worker-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+.worker-textarea:focus { outline: none; border-color: #3b82f6; }
+.fire-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all .15s;
+}
+.fire-toggle.active { border-color: #dc2626; background: #fff1f2; color: #dc2626; }
+.fire-toggle input { width: 22px; height: 22px; accent-color: #dc2626; cursor: pointer; }
+.preload-note {
+  font-size: 12px;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 6px 10px;
+  border-radius: 7px;
+  margin-bottom: 10px;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.confirm-table td {
+  padding: 10px 6px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 15px;
+  vertical-align: top;
+}
+.confirm-table td:first-child {
+  color: #64748b;
+  font-size: 13px;
+  white-space: nowrap;
+  padding-right: 12px;
+  width: 80px;
+}
+.confirm-table tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="worker-page">
+  <div class="worker-header">
+    <h1>🏗️ 工事日報入力</h1>
+    <div class="worker-site" id="worker-site-name">読み込み中...</div>
+    <div class="worker-site" id="worker-date"></div>
+  </div>
+
+  <div class="worker-content">
+
+    <!-- ========== Step 1: 業者選択 ========== -->
+    <div id="screen-vendor">
+      <div class="steps" style="margin:16px 0 8px;">
+        <div class="step active"><div class="step-num">1</div><div class="step-label">業者選択</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-label">種別選択</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-label">入力</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-label">送信</div></div>
+      </div>
+      <div class="worker-step-title">業者を選択してください</div>
+      <div class="worker-card">
+        <div id="vendor-list" class="vendor-grid"></div>
+        <div id="no-vendors" style="display:none" class="empty-state">
+          <div>業者が登録されていません</div>
+          <div style="font-size:12px;margin-top:8px;">管理者にご連絡ください</div>
+        </div>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="window.close();location.href='worker.html'">← 最初から</button>
+        <button class="btn btn-worker-primary" id="vendor-next-btn" onclick="showModeSelect()" disabled>次へ →</button>
+      </div>
+    </div>
+
+    <!-- ========== Step 2: 種別選択 ========== -->
+    <div id="screen-mode" style="display:none">
+      <div class="steps" style="margin:16px 0 8px;">
+        <div class="step done"><div class="step-num">1</div><div class="step-label">業者選択</div></div>
+        <div class="step active"><div class="step-num">2</div><div class="step-label">種別選択</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-label">入力</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-label">送信</div></div>
+      </div>
+      <div class="worker-step-title" id="mode-vendor-label"></div>
+      <div class="worker-card">
+        <button class="mode-btn today" onclick="startToday()">
+          <div class="mode-icon">📝</div>
+          <div class="mode-text">
+            <h3>今日の作業を入力</h3>
+            <p>本日の人数・作業内容・署名を入力します</p>
+          </div>
+        </button>
+        <button class="mode-btn next" onclick="startNext()">
+          <div class="mode-icon">📅</div>
+          <div class="mode-text">
+            <h3>次回の作業予定を入力</h3>
+            <p>次回の日付・予定人数・作業内容を事前登録します</p>
+          </div>
+        </button>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="showScreen('screen-vendor')">← 戻る</button>
+      </div>
+    </div>
+
+    <!-- ========== 今日の入力: 人数・作業内容 ========== -->
+    <div id="screen-today-input" style="display:none">
+      <div class="steps" style="margin:16px 0 8px;">
+        <div class="step done"><div class="step-num">1</div><div class="step-label">業者選択</div></div>
+        <div class="step done"><div class="step-num">2</div><div class="step-label">種別選択</div></div>
+        <div class="step active"><div class="step-num">3</div><div class="step-label">入力</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-label">署名</div></div>
+      </div>
+      <div class="worker-step-title">本日の入力</div>
+      <div class="worker-card">
+        <div id="today-preload-note" class="preload-note" style="display:none">
+          📋 前回登録の作業内容が入力されています。内容を確認・修正してください。
+        </div>
+
+        <div class="section-title">人数・車両台数</div>
+        <div style="margin-bottom:16px;">
+          <div class="count-label">本日の人数</div>
+          <div class="count-input-wrapper">
+            <button class="count-btn" onclick="changeCount('today_workers',-1)">−</button>
+            <div class="count-display" id="today-workers-disp">0</div>
+            <button class="count-btn" onclick="changeCount('today_workers',1)">＋</button>
+          </div>
+        </div>
+        <div style="margin-bottom:20px;">
+          <div class="count-label">車両台数</div>
+          <div class="count-input-wrapper">
+            <button class="count-btn" onclick="changeCount('today_vehicles',-1)">−</button>
+            <div class="count-display" id="today-vehicles-disp">0</div>
+            <button class="count-btn" onclick="changeCount('today_vehicles',1)">＋</button>
+          </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin-bottom:16px;">
+
+        <div class="section-title">作業内容</div>
+        <div style="margin-bottom:12px;">
+          <textarea class="worker-textarea" id="today-work" placeholder="本日の作業内容（任意）"></textarea>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div class="count-label">安全注意事項</div>
+          <textarea class="worker-textarea" id="today-safety" placeholder="安全注意事項（任意）"></textarea>
+        </div>
+        <label class="fire-toggle" id="today-fire-toggle" onclick="toggleFire('today')">
+          <input type="checkbox" id="today-fire-check" onclick="event.stopPropagation()">
+          <span>🔥 火気使用あり</span>
+        </label>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="showScreen('screen-mode')">← 戻る</button>
+        <button class="btn btn-worker-primary" onclick="showScreen('screen-today-sig')">署名へ →</button>
+      </div>
+    </div>
+
+    <!-- 今日の入力: 署名 -->
+    <div id="screen-today-sig" style="display:none">
+      <div class="steps" style="margin:16px 0 8px;">
+        <div class="step done"><div class="step-num">1</div><div class="step-label">業者選択</div></div>
+        <div class="step done"><div class="step-num">2</div><div class="step-label">種別選択</div></div>
+        <div class="step done"><div class="step-num">3</div><div class="step-label">入力</div></div>
+        <div class="step active"><div class="step-num">4</div><div class="step-label">署名</div></div>
+      </div>
+      <div class="worker-step-title">サインしてください</div>
+      <div class="worker-card">
+        <div class="sig-wrapper">
+          <canvas id="sig-canvas"></canvas>
+          <div class="sig-hint" id="sig-hint">ここにサインしてください</div>
+        </div>
+        <div class="sig-actions mt-8">
+          <button class="btn btn-outline btn-sm" onclick="clearSig()">クリア</button>
+        </div>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="showScreen('screen-today-input')">← 戻る</button>
+        <button class="btn btn-worker-primary" onclick="goTodayConfirm()">確認へ →</button>
+      </div>
+    </div>
+
+    <!-- 今日の入力: 確認 -->
+    <div id="screen-today-confirm" style="display:none">
+      <div class="worker-step-title">内容を確認してください</div>
+      <div class="worker-card">
+        <table class="confirm-table" style="width:100%;">
+          <tr><td>業者名</td><td id="tc-vendor" style="font-weight:700;"></td></tr>
+          <tr><td>本日人数</td><td id="tc-workers" style="font-size:20px;font-weight:700;"></td></tr>
+          <tr><td>車両台数</td><td id="tc-vehicles" style="font-size:20px;font-weight:700;"></td></tr>
+          <tr><td>作業内容</td><td id="tc-work" style="white-space:pre-wrap;font-size:14px;"></td></tr>
+          <tr><td>安全注意</td><td id="tc-safety" style="white-space:pre-wrap;font-size:14px;"></td></tr>
+          <tr><td>火気</td><td id="tc-fire"></td></tr>
+          <tr><td>署名</td><td><img id="tc-sig" style="max-width:150px;max-height:60px;border:1px solid #e2e8f0;border-radius:4px;"></td></tr>
+        </table>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="showScreen('screen-today-sig')">← 戻る</button>
+        <button class="btn btn-success" style="font-size:17px;" onclick="submitToday()">✓ 送信する</button>
+      </div>
+    </div>
+
+    <!-- ========== 次回予定: 日付選択 ========== -->
+    <div id="screen-next-date" style="display:none">
+      <div class="steps" style="margin:16px 0 8px;">
+        <div class="step done"><div class="step-num">1</div><div class="step-label">業者選択</div></div>
+        <div class="step done"><div class="step-num">2</div><div class="step-label">種別選択</div></div>
+        <div class="step active"><div class="step-num">3</div><div class="step-label">日付選択</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-label">作業内容</div></div>
+      </div>
+      <div class="worker-step-title">次回の作業日は？</div>
+      <div class="worker-card">
+        <p style="font-size:13px;color:#64748b;margin-bottom:14px;">次に現場に入る予定日を選んでください</p>
+        <div class="next-date-grid">
+          <button class="ndt-btn" id="ndt-1" onclick="selectNextDate('1')">
+            明日<br><span id="ndt-1-label" style="font-size:12px;opacity:.75;font-weight:400;"></span>
+          </button>
+          <button class="ndt-btn" id="ndt-2" onclick="selectNextDate('2')">
+            明後日<br><span id="ndt-2-label" style="font-size:12px;opacity:.75;font-weight:400;"></span>
+          </button>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div class="count-label">日付を選ぶ（カレンダー）</div>
+          <input type="date" id="next-date-cal" style="font-size:16px;padding:12px;border:2px solid #e2e8f0;border-radius:8px;width:100%;-webkit-appearance:none;" oninput="onCalInput()">
+        </div>
+        <button class="ndt-btn" id="ndt-undecided" style="width:100%;padding:16px;font-size:16px;" onclick="selectNextDate('undecided')">
+          📅 未定
+        </button>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="showScreen('screen-mode')">← 戻る</button>
+        <button class="btn btn-worker-primary" id="next-date-next-btn" onclick="showNextInput()" disabled>次へ →</button>
+      </div>
+    </div>
+
+    <!-- 次回予定: 作業内容入力 -->
+    <div id="screen-next-input" style="display:none">
+      <div class="steps" style="margin:16px 0 8px;">
+        <div class="step done"><div class="step-num">1</div><div class="step-label">業者選択</div></div>
+        <div class="step done"><div class="step-num">2</div><div class="step-label">種別選択</div></div>
+        <div class="step done"><div class="step-num">3</div><div class="step-label">日付選択</div></div>
+        <div class="step active"><div class="step-num">4</div><div class="step-label">作業内容</div></div>
+      </div>
+      <div class="worker-step-title">次回の作業内容</div>
+      <div class="worker-card">
+        <div style="background:#eff6ff;border-radius:8px;padding:10px 12px;font-size:13px;color:#1e40af;margin-bottom:16px;">
+          📅 <strong id="next-date-display"></strong> の予定を登録します
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div class="count-label">予定人数</div>
+          <div class="count-input-wrapper">
+            <button class="count-btn" onclick="changeCount('next_workers',-1)">−</button>
+            <div class="count-display" id="next-workers-disp">0</div>
+            <button class="count-btn" onclick="changeCount('next_workers',1)">＋</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div class="count-label">作業内容</div>
+          <textarea class="worker-textarea" id="next-work" placeholder="次回の作業内容を入力してください"></textarea>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div class="count-label">安全注意事項</div>
+          <textarea class="worker-textarea" id="next-safety" placeholder="安全注意事項（任意）"></textarea>
+        </div>
+        <label class="fire-toggle" id="next-fire-toggle" onclick="toggleFire('next')">
+          <input type="checkbox" id="next-fire-check" onclick="event.stopPropagation()">
+          <span>🔥 火気使用あり</span>
+        </label>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="showScreen('screen-next-date')">← 戻る</button>
+        <button class="btn btn-worker-primary" onclick="goNextConfirm()">確認へ →</button>
+      </div>
+    </div>
+
+    <!-- 次回予定: 確認 -->
+    <div id="screen-next-confirm" style="display:none">
+      <div class="worker-step-title">内容を確認してください</div>
+      <div class="worker-card">
+        <table class="confirm-table" style="width:100%;">
+          <tr><td>業者名</td><td id="nc-vendor" style="font-weight:700;"></td></tr>
+          <tr><td>次回作業日</td><td id="nc-date" style="font-weight:700;color:#1e40af;"></td></tr>
+          <tr><td>予定人数</td><td id="nc-workers" style="font-size:20px;font-weight:700;"></td></tr>
+          <tr><td>作業内容</td><td id="nc-work" style="white-space:pre-wrap;font-size:14px;"></td></tr>
+          <tr><td>安全注意</td><td id="nc-safety" style="white-space:pre-wrap;font-size:14px;"></td></tr>
+          <tr><td>火気</td><td id="nc-fire"></td></tr>
+        </table>
+      </div>
+      <div class="worker-nav">
+        <button class="btn btn-secondary" onclick="showScreen('screen-next-input')">← 戻る</button>
+        <button class="btn btn-success" style="font-size:17px;" onclick="submitNext()">✓ 登録する</button>
+      </div>
+    </div>
+
+    <!-- ========== 完了 ========== -->
+    <div id="screen-done" style="display:none">
+      <div style="text-align:center;padding:40px 20px;">
+        <div style="font-size:72px;margin-bottom:16px;">✅</div>
+        <div style="color:white;font-size:22px;font-weight:700;margin-bottom:8px;" id="done-title"></div>
+        <div style="color:rgba(255,255,255,.8);font-size:14px;margin-bottom:32px;" id="done-sub"></div>
+        <button class="btn btn-worker-primary" style="max-width:240px;margin:0 auto 12px;" onclick="window.close()">
+          画面を閉じる
+        </button>
+        <button class="btn btn-outline" style="max-width:240px;margin:0 auto;display:block;border-color:white;color:white;" onclick="resetAll()">
+          別の業者を入力する
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+<script src="js/signature.js"></script>
+<script>
+// ---- 状態 ----
+let selectedVendor = null;
+let todayWorkers = 0, todayVehicles = 0, todayFire = false;
+let nextWorkers = 0, nextFire = false;
+let nextWorkDate = null; // "YYYY-MM-DD" or "未定"
+let sigPad = null;
+let currentSite = null;
+let today = App.today();
+
+// ---- 初期化 ----
+function init() {
+  const params = new URLSearchParams(location.search);
+  const siteParam = params.get('site');
+  currentSite = siteParam
+    ? (Storage.getSites().find(s => s.number === siteParam) || null)
+    : Storage.getActiveSite();
+
+  if (!currentSite) {
+    alert('現場が見つかりません。管理者にご確認ください。');
+    // 現場が見つからない場合は何もしない（QRコード経由のみ想定）
+  document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><p>現場が見つかりません。<br>QRコードから再度アクセスしてください。</p></div>';
+    return;
+  }
+  document.getElementById('worker-site-name').textContent = '【' + currentSite.number + '】' + currentSite.name;
+  document.getElementById('worker-date').textContent = App.formatDate(today);
+
+  loadVendors();
+  initSig();
+  initNextDateLabels();
+}
+
+// ---- 画面切替 ----
+function showScreen(id) {
+  document.querySelectorAll('.worker-content > div').forEach(el => el.style.display = 'none');
+  document.getElementById(id).style.display = '';
+}
+
+// ---- 業者 ----
+function loadVendors() {
+  const vendors = Storage.getVendors(currentSite.number);
+  const list = document.getElementById('vendor-list');
+  list.innerHTML = '';
+  if (vendors.length === 0) {
+    document.getElementById('no-vendors').style.display = '';
+    list.style.display = 'none';
+    return;
+  }
+  vendors.forEach(v => {
+    const btn = document.createElement('button');
+    btn.className = 'vendor-btn';
+    btn.textContent = v.name;
+    btn.onclick = () => {
+      document.querySelectorAll('.vendor-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedVendor = v;
+      document.getElementById('vendor-next-btn').disabled = false;
+    };
+    list.appendChild(btn);
+  });
+}
+
+function showModeSelect() {
+  if (!selectedVendor) return;
+  document.getElementById('mode-vendor-label').textContent = selectedVendor.name;
+  showScreen('screen-mode');
+}
+
+// ---- 今日モード開始 ----
+function startToday() {
+  // 今日の日報から前回登録データを読み込んで自動入力
+  const report = Storage.getReport(currentSite.number, today);
+  const row = report ? report.rows.find(r => r.vendorId === selectedVendor.id) : null;
+  let preloaded = false;
+
+  if (row) {
+    // 予定人数 or 既入力の実人数をデフォルトに
+    if (row.actualWorkers !== '' && row.actualWorkers !== undefined) {
+      todayWorkers = parseInt(row.actualWorkers) || 0;
+    } else if (row.plannedWorkers !== '' && row.plannedWorkers !== undefined) {
+      todayWorkers = parseInt(row.plannedWorkers) || 0;
+    }
+    todayVehicles = parseInt(row.vehicles) || 0;
+    if (row.workInstruction) {
+      document.getElementById('today-work').value = row.workInstruction;
+      preloaded = true;
+    }
+    if (row.safetyNotes) document.getElementById('today-safety').value = row.safetyNotes;
+    todayFire = row.fireCheck || false;
+    document.getElementById('today-fire-check').checked = todayFire;
+    document.getElementById('today-fire-toggle').classList.toggle('active', todayFire);
+  }
+
+  document.getElementById('today-workers-disp').textContent = todayWorkers;
+  document.getElementById('today-vehicles-disp').textContent = todayVehicles;
+  document.getElementById('today-preload-note').style.display = preloaded ? '' : 'none';
+  showScreen('screen-today-input');
+}
+
+// ---- 次回モード開始 ----
+function startNext() {
+  // 次回予定がすでに登録済みか確認してデフォルト表示
+  nextWorkers = 0;
+  document.getElementById('next-workers-disp').textContent = 0;
+  document.getElementById('next-work').value = '';
+  document.getElementById('next-safety').value = '';
+  nextFire = false;
+  document.getElementById('next-fire-check').checked = false;
+  document.getElementById('next-fire-toggle').classList.remove('active');
+  nextWorkDate = null;
+  resetNextDateBtns();
+  document.getElementById('next-date-cal').value = '';
+  document.getElementById('next-date-next-btn').disabled = true;
+  showScreen('screen-next-date');
+}
+
+// ---- 人数カウンター ----
+function changeCount(type, delta) {
+  if (type === 'today_workers') {
+    todayWorkers = Math.max(0, todayWorkers + delta);
+    document.getElementById('today-workers-disp').textContent = todayWorkers;
+  } else if (type === 'today_vehicles') {
+    todayVehicles = Math.max(0, todayVehicles + delta);
+    document.getElementById('today-vehicles-disp').textContent = todayVehicles;
+  } else if (type === 'next_workers') {
+    nextWorkers = Math.max(0, nextWorkers + delta);
+    document.getElementById('next-workers-disp').textContent = nextWorkers;
+  }
+}
+
+// ---- 火気チェック ----
+function toggleFire(mode) {
+  if (mode === 'today') {
+    todayFire = !todayFire;
+    document.getElementById('today-fire-check').checked = todayFire;
+    document.getElementById('today-fire-toggle').classList.toggle('active', todayFire);
+  } else {
+    nextFire = !nextFire;
+    document.getElementById('next-fire-check').checked = nextFire;
+    document.getElementById('next-fire-toggle').classList.toggle('active', nextFire);
+  }
+}
+
+// ---- 次回日付選択 ----
+function initNextDateLabels() {
+  document.getElementById('ndt-1-label').textContent = fmtShort(offsetDate(1));
+  document.getElementById('ndt-2-label').textContent = fmtShort(offsetDate(2));
+}
+
+function offsetDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function fmtShort(dateStr) {
+  const [,m,d] = dateStr.split('-');
+  return m + '/' + d;
+}
+
+function resetNextDateBtns() {
+  ['ndt-1','ndt-2','ndt-undecided'].forEach(id => document.getElementById(id).classList.remove('selected'));
+}
+
+function selectNextDate(type) {
+  resetNextDateBtns();
+  document.getElementById('next-date-cal').value = '';
+  if (type === '1') {
+    nextWorkDate = offsetDate(1);
+    document.getElementById('ndt-1').classList.add('selected');
+  } else if (type === '2') {
+    nextWorkDate = offsetDate(2);
+    document.getElementById('ndt-2').classList.add('selected');
+  } else {
+    nextWorkDate = '未定';
+    document.getElementById('ndt-undecided').classList.add('selected');
+  }
+  document.getElementById('next-date-next-btn').disabled = false;
+}
+
+function onCalInput() {
+  const val = document.getElementById('next-date-cal').value;
+  if (!val) return;
+  resetNextDateBtns();
+  nextWorkDate = val;
+  document.getElementById('next-date-next-btn').disabled = false;
+}
+
+function showNextInput() {
+  if (!nextWorkDate) return;
+  const label = nextWorkDate === '未定' ? '未定' : App.formatDate(nextWorkDate);
+  document.getElementById('next-date-display').textContent = label;
+
+  // 既存登録があればプレロード
+  if (nextWorkDate !== '未定') {
+    const report = Storage.getReport(currentSite.number, nextWorkDate);
+    const row = report ? report.rows.find(r => r.vendorId === selectedVendor.id) : null;
+    if (row) {
+      nextWorkers = parseInt(row.plannedWorkers) || 0;
+      document.getElementById('next-workers-disp').textContent = nextWorkers;
+      if (row.workInstruction) document.getElementById('next-work').value = row.workInstruction;
+      if (row.safetyNotes) document.getElementById('next-safety').value = row.safetyNotes;
+      nextFire = row.fireCheck || false;
+      document.getElementById('next-fire-check').checked = nextFire;
+      document.getElementById('next-fire-toggle').classList.toggle('active', nextFire);
+    }
+  }
+  showScreen('screen-next-input');
+}
+
+// ---- 署名 ----
+function initSig() {
+  const canvas = document.getElementById('sig-canvas');
+  sigPad = new SignaturePad(canvas);
+  ['mousedown','touchstart'].forEach(ev => {
+    canvas.addEventListener(ev, () => { document.getElementById('sig-hint').style.opacity = '0'; }, { passive: true });
+  });
+}
+
+function clearSig() {
+  sigPad.clear();
+  document.getElementById('sig-hint').style.opacity = '1';
+}
+
+// ---- 今日の確認 ----
+function goTodayConfirm() {
+  const sig = sigPad ? sigPad.toDataURL() : null;
+  if (!sig) { alert('署名をしてください'); return; }
+  document.getElementById('tc-vendor').textContent = selectedVendor.name;
+  document.getElementById('tc-workers').textContent = todayWorkers + ' 人';
+  document.getElementById('tc-vehicles').textContent = todayVehicles + ' 台';
+  document.getElementById('tc-work').textContent = document.getElementById('today-work').value || '（未入力）';
+  document.getElementById('tc-safety').textContent = document.getElementById('today-safety').value || '（未入力）';
+  document.getElementById('tc-fire').innerHTML = todayFire ? '<span style="color:#dc2626;font-weight:700;">🔥 あり</span>' : 'なし';
+  document.getElementById('tc-sig').src = sig;
+  showScreen('screen-today-confirm');
+}
+
+// ---- 次回の確認 ----
+function goNextConfirm() {
+  document.getElementById('nc-vendor').textContent = selectedVendor.name;
+  document.getElementById('nc-date').textContent = nextWorkDate === '未定' ? '未定' : App.formatDate(nextWorkDate);
+  document.getElementById('nc-workers').textContent = nextWorkers + ' 人';
+  document.getElementById('nc-work').textContent = document.getElementById('next-work').value || '（未入力）';
+  document.getElementById('nc-safety').textContent = document.getElementById('next-safety').value || '（未入力）';
+  document.getElementById('nc-fire').innerHTML = nextFire ? '<span style="color:#dc2626;font-weight:700;">🔥 あり</span>' : 'なし';
+  showScreen('screen-next-confirm');
+}
+
+// ---- 今日送信 ----
+function submitToday() {
+  const sig = sigPad.toDataURL();
+  const workInstruction = document.getElementById('today-work').value;
+  const safetyNotes = document.getElementById('today-safety').value;
+  const dateStr = today.replace(/-/g,'');
+
+  Storage.saveWorkerInput(currentSite.number, dateStr, {
+    vendorId: selectedVendor.id, vendorName: selectedVendor.name,
+    actualWorkers: todayWorkers, vehicles: todayVehicles,
+    workInstruction, safetyNotes, fireCheck: todayFire,
+    signature: sig, submittedAt: new Date().toISOString()
+  });
+
+  let report = Storage.getReport(currentSite.number, today) || App.newReport(currentSite, today);
+  let row = report.rows.find(r => r.vendorId === selectedVendor.id);
+  if (!row) {
+    row = App.newRow(selectedVendor);
+    const prev = Storage.getPrevReport(currentSite.number, today);
+    if (prev) {
+      const pr = prev.rows.find(r => r.vendorId === selectedVendor.id);
+      if (pr) row.prevTotal = (parseInt(pr.prevTotal)||0) + (parseInt(pr.actualWorkers)||0);
+    }
+    report.rows.push(row);
+  }
+  Object.assign(row, { actualWorkers: todayWorkers, vehicles: todayVehicles, workInstruction, safetyNotes, fireCheck: todayFire, signature: sig, submittedByWorker: true });
+  Storage.saveReport(report);
+
+  document.getElementById('done-title').textContent = '送信完了しました';
+  document.getElementById('done-sub').textContent = selectedVendor.name + ' の本日分を受け付けました';
+  showScreen('screen-done');
+}
+
+// ---- 次回送信 ----
+function submitNext() {
+  if (nextWorkDate === '未定') {
+    // 未定の場合は今日の日報に nextWorkDate だけ記録
+    let report = Storage.getReport(currentSite.number, today) || App.newReport(currentSite, today);
+    let row = report.rows.find(r => r.vendorId === selectedVendor.id);
+    if (!row) { row = App.newRow(selectedVendor); report.rows.push(row); }
+    row.nextWorkDate = '未定';
+    Storage.saveReport(report);
+  } else {
+    // 対象日の日報に予定データを保存
+    let report = Storage.getReport(currentSite.number, nextWorkDate) || App.newReport(currentSite, nextWorkDate);
+    let row = report.rows.find(r => r.vendorId === selectedVendor.id);
+    if (!row) {
+      row = App.newRow(selectedVendor);
+      // 前回累計の引き継ぎ
+      const prev = Storage.getPrevReport(currentSite.number, nextWorkDate);
+      if (prev) {
+        const pr = prev.rows.find(r => r.vendorId === selectedVendor.id);
+        if (pr) row.prevTotal = (parseInt(pr.prevTotal)||0) + (parseInt(pr.actualWorkers)||0);
+      }
+      report.rows.push(row);
+    }
+    Object.assign(row, {
+      plannedWorkers: nextWorkers,
+      workInstruction: document.getElementById('next-work').value,
+      safetyNotes: document.getElementById('next-safety').value,
+      fireCheck: nextFire,
+      nextWorkDate
+    });
+    Storage.saveReport(report);
+  }
+
+  const label = nextWorkDate === '未定' ? '未定' : App.formatDate(nextWorkDate);
+  document.getElementById('done-title').textContent = '次回予定を登録しました';
+  document.getElementById('done-sub').textContent = selectedVendor.name + '　次回：' + label;
+  showScreen('screen-done');
+}
+
+// ---- リセット ----
+function resetAll() {
+  selectedVendor = null;
+  todayWorkers = todayVehicles = 0;
+  nextWorkers = 0;
+  todayFire = nextFire = false;
+  nextWorkDate = null;
+  ['today-work','today-safety','next-work','next-safety'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('today-fire-check').checked = false;
+  document.getElementById('today-fire-toggle').classList.remove('active');
+  document.getElementById('next-fire-check').checked = false;
+  document.getElementById('next-fire-toggle').classList.remove('active');
+  if (sigPad) { sigPad.clear(); document.getElementById('sig-hint').style.opacity = '1'; }
+  document.querySelectorAll('.vendor-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('vendor-next-btn').disabled = true;
+  showScreen('screen-vendor');
+}
+
+init();
+</script>
+</body>
+</html>

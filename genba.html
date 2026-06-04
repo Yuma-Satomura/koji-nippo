@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>現場管理</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <h1>🏗️ 現場管理</h1>
+  <div class="header-actions">
+    <a href="list.html" class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);">← 日報一覧</a>
+    <button class="btn btn-secondary btn-sm" onclick="Auth.logout();location.href='admin.html'">ログアウト</button>
+  </div>
+</header>
+
+<div class="page-wrapper">
+  <!-- Add/Edit form -->
+  <div class="card">
+    <div class="card-title" id="form-title">新しい現場を追加</div>
+    <input type="hidden" id="edit-id">
+    <div class="input-row">
+      <div class="form-group">
+        <label>工事番号 <span style="color:#dc2626">*</span></label>
+        <input type="text" id="f-number" placeholder="例: 2024-001">
+      </div>
+      <div class="form-group">
+        <label>顧客名</label>
+        <input type="text" id="f-client" placeholder="例: 〇〇建設株式会社">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>工事件名 <span style="color:#dc2626">*</span></label>
+      <input type="text" id="f-name" placeholder="例: 〇〇ビル新築工事">
+    </div>
+    <div class="flex-row">
+      <button class="btn btn-primary" onclick="saveGenba()">💾 保存する</button>
+      <button class="btn btn-secondary" onclick="cancelEdit()" id="cancel-btn" style="display:none">キャンセル</button>
+    </div>
+  </div>
+
+  <!-- Site list -->
+  <div class="card">
+    <div class="flex-between mb-8">
+      <div class="card-title" style="margin-bottom:0">現場一覧</div>
+      <span class="text-muted" style="font-size:12px;">各現場のQRボタンで専用QRを表示</span>
+    </div>
+    <div id="genba-list"></div>
+  </div>
+</div>
+
+<!-- QR Modal -->
+<div id="qr-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h2 id="qr-modal-title">📱 職人用QRコード</h2>
+    <p id="qr-site-name" style="font-size:13px;color:#64748b;margin-bottom:12px;"></p>
+    <input type="hidden" id="qr-site-number">
+    <div id="qr-container" style="margin:0 auto 16px;width:200px;height:200px;"></div>
+    <div style="font-size:11px;color:#94a3b8;word-break:break-all;margin-bottom:16px;" id="qr-url"></div>
+    <button class="btn btn-primary" onclick="printQR()">🖨️ 印刷する</button>
+    <button class="btn btn-secondary modal-close" onclick="closeQR()">閉じる</button>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+if (!Auth.requireAuth()) { /* redirect */ }
+
+function render() {
+  const sites = Storage.getSites();
+  const active = Storage.getActiveSite();
+  const list = document.getElementById('genba-list');
+  if (sites.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>現場がありません。上のフォームから追加してください。</p></div>';
+    return;
+  }
+  list.innerHTML = sites.map(s => {
+    const isActive = active && s.id === active.id;
+    return `
+    <div class="genba-card ${isActive ? 'active' : 'inactive'}"
+         onclick="${isActive ? '' : "setActive('" + s.id + "')"}"
+         style="border-color:${isActive ? '#1e40af' : '#cbd5e1'};background:${isActive ? '#eff6ff' : '#f8fafc'};">
+      <div class="genba-info">
+        <h3 style="color:${isActive ? '#1e293b' : '#64748b'};">${escHtml(s.name)}</h3>
+        <p style="color:${isActive ? '#64748b' : '#94a3b8'};">工事番号: ${escHtml(s.number)}${s.client ? '　顧客: ' + escHtml(s.client) : ''}</p>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        ${isActive
+          ? `<button onclick="event.stopPropagation();deactivate()"
+               style="cursor:pointer;border:none;padding:4px 12px;border-radius:20px;background:#1e40af;color:white;font-size:12px;font-weight:700;letter-spacing:.5px;"
+               title="クリックで解除">▶ 稼働中</button>`
+          : `<span style="padding:4px 12px;border-radius:20px;background:#e2e8f0;color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:.5px;">
+               ■ 非アクティブ
+             </span>`
+        }
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();showQR('${s.number}', '${escHtml(s.name)}')">📱 QR</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editGenba('${s.id}')">編集</button>
+          <a href="master.html?site=${encodeURIComponent(s.number)}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">業者マスタ</a>
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteGenba('${s.id}')">削除</button>
+        </div>
+        ${!isActive ? '<p style="font-size:11px;color:#94a3b8;margin:0;text-align:right;">カードをクリックして稼働中に変更</p>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function saveGenba() {
+  const number = document.getElementById('f-number').value.trim();
+  const name = document.getElementById('f-name').value.trim();
+  const client = document.getElementById('f-client').value.trim();
+  if (!number || !name) { alert('工事番号と工事件名は必須です'); return; }
+
+  const id = document.getElementById('edit-id').value || Storage.uuid();
+  Storage.saveSite({ id, number, name, client });
+  App.toast('現場を保存しました');
+  cancelEdit();
+  render();
+}
+
+function editGenba(id) {
+  const s = Storage.getSite(id);
+  if (!s) return;
+  document.getElementById('edit-id').value = s.id;
+  document.getElementById('f-number').value = s.number;
+  document.getElementById('f-name').value = s.name;
+  document.getElementById('f-client').value = s.client || '';
+  document.getElementById('form-title').textContent = '現場を編集';
+  document.getElementById('cancel-btn').style.display = '';
+  document.getElementById('f-number').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('f-number').value = '';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-client').value = '';
+  document.getElementById('form-title').textContent = '新しい現場を追加';
+  document.getElementById('cancel-btn').style.display = 'none';
+}
+
+function deleteGenba(id) {
+  if (!confirm('この現場を削除しますか？\n（業者マスタ・日報データは残ります）')) return;
+  Storage.deleteSite(id);
+  const active = Storage.getActiveSite();
+  if (active && active.id === id) {
+    const sites = Storage.getSites();
+    localStorage.setItem('active_genba', sites.length > 0 ? sites[0].id : '');
+  }
+  App.toast('削除しました', 'warning');
+  render();
+}
+
+function setActive(id) {
+  Storage.setActiveSite(id);
+  App.toast('アクティブ現場を設定しました');
+  render();
+}
+
+function deactivate() {
+  localStorage.removeItem('active_genba');
+  App.toast('アクティブ現場を解除しました', 'warning');
+  render();
+}
+
+function showQR(siteNumber, siteName) {
+  const base = location.origin + location.pathname.replace('genba.html', 'worker.html');
+  const url = base + '?site=' + encodeURIComponent(siteNumber);
+  document.getElementById('qr-modal-title').textContent = '📱 ' + siteName;
+  document.getElementById('qr-url').textContent = url;
+  document.getElementById('qr-site-number').value = siteNumber;
+  document.getElementById('qr-site-name').textContent = siteName;
+  const container = document.getElementById('qr-container');
+  container.innerHTML = '';
+  new QRCode(container, {
+    text: url,
+    width: 200,
+    height: 200,
+    colorDark: '#1e3a8a',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  document.getElementById('qr-modal').style.display = '';
+}
+
+function closeQR() {
+  document.getElementById('qr-modal').style.display = 'none';
+}
+
+function printQR() {
+  const url = document.getElementById('qr-url').textContent;
+  const siteName = document.getElementById('qr-site-name').textContent;
+  const siteNumber = document.getElementById('qr-site-number').value;
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>QRコード</title><style>
+    body{font-family:sans-serif;text-align:center;padding:40px}
+    h2{margin-bottom:6px;color:#1e3a8a}
+    p{color:#555;font-size:14px;margin:4px 0}
+    .site{font-size:16px;font-weight:bold;margin:10px 0;}
+  </style></head><body>
+    <h2>🏗️ 工事日報 職人入力</h2>
+    <p class="site">【${siteNumber}】${siteName}</p>
+    <p>このQRコードをスマホで読み取ってください</p>
+    <div id="qr2" style="margin:16px auto;display:inline-block;"></div>
+    <p style="font-size:11px;word-break:break-all;color:#aaa;margin-top:10px;">${url}</p>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+    <script>
+      new QRCode(document.getElementById('qr2'), {text:'${url}',width:260,height:260,colorDark:'#1e3a8a',colorLight:'#ffffff'});
+      setTimeout(() => window.print(), 800);
+    <\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+render();
+</script>
+</body>
+</html>

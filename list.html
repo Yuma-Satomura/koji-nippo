@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日報一覧</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <h1>📋 日報一覧</h1>
+  <div class="header-actions">
+    <span class="header-site-name" id="header-site"></span>
+    <a href="genba.html" class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);">現場管理</a>
+    <button class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);" onclick="exportData()">エクスポート</button>
+    <button class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);" onclick="importData()">インポート</button>
+    <button class="btn btn-secondary btn-sm" onclick="Auth.logout();location.href='admin.html'">ログアウト</button>
+  </div>
+</header>
+
+<div class="page-wrapper">
+  <!-- 作業予定ビュー -->
+  <div class="card">
+    <!-- 日付ナビ -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <button class="btn btn-outline btn-sm" onclick="shiftScheduleDate(-1)" style="padding:6px 12px;">◀</button>
+      <div style="flex:1;text-align:center;">
+        <div id="schedule-date-label" style="font-size:17px;font-weight:700;color:#1e40af;"></div>
+        <div id="schedule-date-sub" style="font-size:12px;color:#64748b;margin-top:2px;"></div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="shiftScheduleDate(1)" style="padding:6px 12px;">▶</button>
+    </div>
+    <!-- 現場タブ -->
+    <div id="schedule-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;"></div>
+    <!-- 予定コンテンツ -->
+    <div id="schedule-content"></div>
+    <div class="mt-8 flex-row">
+      <button class="btn btn-primary btn-sm" onclick="goEditSchedule()">📝 この日の日報を編集</button>
+      <button class="btn btn-outline btn-sm" onclick="jumpToToday()">今日に戻る</button>
+    </div>
+  </div>
+
+  <!-- Today status card -->
+  <div class="card" id="today-card">
+    <div class="flex-between" style="cursor:pointer;" onclick="toggleTodayCard()">
+      <div class="card-title" style="margin-bottom:0;">📊 本日の入力状況</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="today-label" class="text-muted" style="font-size:13px;"></span>
+        <span id="today-toggle-icon" style="font-size:18px;color:#64748b;">▼</span>
+      </div>
+    </div>
+    <div id="today-body" style="display:none;margin-top:12px;">
+      <div id="today-status"></div>
+      <div class="mt-8">
+        <button class="btn btn-primary btn-sm" onclick="goToday();event.stopPropagation()">📝 本日の日報を編集</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="flex-between mb-8">
+    <button class="btn btn-success" onclick="openNewModal()">＋ 新規日報作成</button>
+    <button class="btn btn-outline" id="bulk-btn" onclick="toggleBulk()" style="display:none">まとめて印刷</button>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-bar">
+    <div class="form-group">
+      <label>開始日</label>
+      <input type="date" id="f-from">
+    </div>
+    <div class="form-group">
+      <label>終了日</label>
+      <input type="date" id="f-to">
+    </div>
+    <div class="form-group">
+      <label>工事番号</label>
+      <input type="text" id="f-number" placeholder="絞り込み...">
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px;">
+      <button class="btn btn-primary btn-sm" onclick="applyFilter()">絞り込み</button>
+      <button class="btn btn-secondary btn-sm" onclick="clearFilter()">クリア</button>
+    </div>
+  </div>
+
+  <!-- Bulk actions (hidden by default) -->
+  <div id="bulk-panel" style="display:none" class="card">
+    <div class="flex-between mb-8">
+      <div><strong>まとめて印刷</strong> — チェックした日報をPDFで出力</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="selectAll()">全選択</button>
+        <button class="btn btn-outline btn-sm" onclick="deselectAll()">解除</button>
+        <button class="btn btn-primary btn-sm" onclick="bulkPrint()">📄 PDF出力</button>
+      </div>
+    </div>
+    <div id="bulk-info" class="text-muted" style="font-size:13px;"></div>
+  </div>
+
+  <!-- Report list -->
+  <div id="report-list"></div>
+</div>
+
+<!-- 新規日報作成モーダル -->
+<div id="new-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:400px;text-align:left;">
+    <h2 style="margin-bottom:20px;">＋ 新規日報作成</h2>
+
+    <div class="form-group">
+      <label>現場</label>
+      <select id="modal-site" style="font-size:15px;"></select>
+    </div>
+
+    <div class="form-group">
+      <label>日付</label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-outline btn-sm" onclick="setModalDate(0)">今日</button>
+        <button class="btn btn-primary btn-sm" onclick="setModalDate(1)">翌日</button>
+        <button class="btn btn-outline btn-sm" onclick="setModalDate(2)">翌々日</button>
+      </div>
+      <input type="date" id="modal-date" style="font-size:15px;">
+    </div>
+
+    <div id="modal-exists-warn" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px;font-size:13px;color:#92400e;margin-bottom:12px;">
+      ⚠️ この日付の日報はすでに存在します。編集画面に移動します。
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeNewModal()">キャンセル</button>
+      <button class="btn btn-success" style="flex:2" onclick="goNewReport()">作成・編集する →</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="js/pdf.js"></script>
+<script>
+if (!Auth.requireAuth()) { /* redirect */ }
+
+let allReports = [];
+let filtered = [];
+let bulkMode = false;
+
+// ===== 作業予定ビュー =====
+let scheduleDate = null;
+let scheduleSiteNumber = null;
+
+function offsetDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function initScheduleView() {
+  scheduleDate = offsetDate(1); // デフォルト翌日
+  const sites = Storage.getSites();
+  scheduleSiteNumber = sites.length > 0 ? (Storage.getActiveSite() || sites[0]).number : null;
+  renderSchedule();
+}
+
+function shiftScheduleDate(delta) {
+  scheduleDate = addDays(scheduleDate, delta);
+  renderSchedule();
+}
+
+function jumpToToday() {
+  scheduleDate = App.today();
+  renderSchedule();
+}
+
+function renderScheduleTabs() {
+  const sites = Storage.getSites();
+  const tabs = document.getElementById('schedule-tabs');
+  if (sites.length <= 1) { tabs.innerHTML = ''; return; }
+  tabs.innerHTML = sites.map(s => `
+    <button onclick="scheduleSelectSite('${escHtml(s.number)}')"
+      style="padding:5px 12px;border-radius:20px;border:2px solid ${s.number===scheduleSiteNumber?'#1e40af':'#e2e8f0'};
+      background:${s.number===scheduleSiteNumber?'#1e40af':'white'};
+      color:${s.number===scheduleSiteNumber?'white':'#1e293b'};
+      font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+      ${escHtml(s.number)}
+    </button>`).join('');
+}
+
+function scheduleSelectSite(number) {
+  scheduleSiteNumber = number;
+  renderSchedule();
+}
+
+function renderSchedule() {
+  if (!scheduleDate) return;
+
+  // 日付ラベル
+  const today = App.today();
+  const tomorrow = offsetDate(1);
+  let sub = '';
+  if (scheduleDate === today) sub = '今日';
+  else if (scheduleDate === tomorrow) sub = '翌日';
+  document.getElementById('schedule-date-label').textContent = App.formatDate(scheduleDate);
+  document.getElementById('schedule-date-sub').textContent = sub;
+
+  renderScheduleTabs();
+
+  const sites = Storage.getSites();
+  if (sites.length === 0) {
+    document.getElementById('schedule-content').innerHTML = '<p class="text-muted">現場が登録されていません</p>';
+    return;
+  }
+  if (!scheduleSiteNumber) scheduleSiteNumber = sites[0].number;
+
+  const vendors = Storage.getVendors(scheduleSiteNumber);
+  const report  = Storage.getReport(scheduleSiteNumber, scheduleDate);
+  const rows    = report ? report.rows : [];
+
+  if (vendors.length === 0 && rows.length === 0) {
+    document.getElementById('schedule-content').innerHTML =
+      '<div class="empty-state" style="padding:24px 0;"><div class="empty-icon" style="font-size:32px;">📋</div><p>業者マスタが登録されていません</p></div>';
+    return;
+  }
+
+  // 業者マスタを基準に、登録済み行をマージ
+  const allVendors = vendors.length > 0 ? vendors : rows.map(r => ({ id: r.vendorId, name: r.vendorName }));
+  // 業者マスタにない行（職人が直接入力したもの）も含める
+  const extraRows = rows.filter(r => !vendors.find(v => v.id === r.vendorId));
+  const displayVendors = [...allVendors, ...extraRows.map(r => ({ id: r.vendorId, name: r.vendorName }))];
+
+  let html = '';
+  let totalPlanned = 0;
+  let registeredCount = 0;
+
+  displayVendors.forEach(v => {
+    const row = rows.find(r => r.vendorId === v.id);
+    const planned = row && (row.plannedWorkers !== '' && row.plannedWorkers !== undefined) ? parseInt(row.plannedWorkers) : null;
+    const hasData = row && (row.workInstruction || planned !== null);
+    if (planned) totalPlanned += planned;
+    if (hasData) registeredCount++;
+
+    html += `
+    <div style="border:1px solid ${hasData?'#bfdbfe':'#e2e8f0'};border-radius:10px;padding:14px;margin-bottom:10px;background:${hasData?'#f0f7ff':'#fafafa'};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${hasData?'10px':'0'};">
+        <div style="font-size:15px;font-weight:700;">${escHtml(v.name)}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+          ${planned !== null
+            ? `<span style="font-size:18px;font-weight:700;color:#1e40af;">${planned}<span style="font-size:13px;font-weight:400;">人</span></span>`
+            : `<span style="font-size:13px;color:#94a3b8;">人数未登録</span>`}
+          <span class="badge ${hasData ? 'badge-info' : 'badge-warning'}">${hasData ? '登録済' : '未登録'}</span>
+        </div>
+      </div>
+      ${hasData ? `
+        ${row.workInstruction ? `
+          <div style="margin-bottom:6px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;">作業内容</div>
+            <div style="font-size:14px;white-space:pre-wrap;background:white;border-radius:6px;padding:8px 10px;border:1px solid #e2e8f0;">${escHtml(row.workInstruction)}</div>
+          </div>` : ''}
+        ${row.safetyNotes ? `
+          <div style="margin-bottom:6px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;">安全注意事項</div>
+            <div style="font-size:13px;white-space:pre-wrap;background:white;border-radius:6px;padding:6px 10px;border:1px solid #e2e8f0;color:#475569;">${escHtml(row.safetyNotes)}</div>
+          </div>` : ''}
+        ${row.fireCheck ? `<span style="font-size:13px;color:#dc2626;font-weight:700;">🔥 火気使用あり</span>` : ''}
+      ` : '<div style="font-size:13px;color:#94a3b8;">作業予定が登録されていません</div>'}
+    </div>`;
+  });
+
+  // サマリーヘッダー
+  const summary = `
+    <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+      <div style="background:#eff6ff;border-radius:8px;padding:8px 16px;text-align:center;flex:1;min-width:90px;">
+        <div style="font-size:11px;color:#64748b;">登録業者</div>
+        <div style="font-size:20px;font-weight:700;color:#1e40af;">${registeredCount}<span style="font-size:13px;"> / ${displayVendors.length}</span></div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:8px;padding:8px 16px;text-align:center;flex:1;min-width:90px;">
+        <div style="font-size:11px;color:#64748b;">合計予定人数</div>
+        <div style="font-size:20px;font-weight:700;color:#16a34a;">${totalPlanned}<span style="font-size:13px;">人</span></div>
+      </div>
+    </div>`;
+
+  document.getElementById('schedule-content').innerHTML = summary + html;
+}
+
+function goEditSchedule() {
+  if (!scheduleSiteNumber || !scheduleDate) return;
+  location.href = 'edit.html?site=' + encodeURIComponent(scheduleSiteNumber) + '&date=' + scheduleDate;
+}
+
+// ===== 既存の init に統合 =====
+function init() {
+  const site = Storage.getActiveSite();
+  document.getElementById('header-site').textContent = site ? '【' + site.number + '】' + site.name : '現場未設定';
+  initScheduleView();
+  renderTodayStatus();
+  loadReports();
+}
+
+function toggleTodayCard() {
+  const body = document.getElementById('today-body');
+  const icon = document.getElementById('today-toggle-icon');
+  const open = body.style.display === '';
+  body.style.display = open ? 'none' : '';
+  icon.textContent = open ? '▼' : '▲';
+}
+
+function renderTodayStatus() {
+  // 本日入力状況（折りたたみ内）
+  const sites = Storage.getSites();
+  const today = App.today();
+  document.getElementById('today-label').textContent = App.formatDate(today);
+
+  if (sites.length === 0) {
+    document.getElementById('today-status').innerHTML = '<p class="text-muted">現場が登録されていません</p>';
+    return;
+  }
+
+  // 全現場の本日入力状況をまとめて表示
+  let html = '';
+  sites.forEach(site => {
+    const vendors = Storage.getVendors(site.number);
+    if (vendors.length === 0) return;
+    const report = Storage.getReport(site.number, today);
+    const submittedIds = new Set((report ? report.rows : []).filter(r => r.submittedByWorker).map(r => r.vendorId));
+    const doneCount = vendors.filter(v => submittedIds.has(v.id)).length;
+
+    if (sites.length > 1) {
+      html += `<div style="font-size:12px;font-weight:700;color:#64748b;margin:10px 0 6px;">【${escHtml(site.number)}】${escHtml(site.name)}</div>`;
+    }
+    html += vendors.map(v => {
+      const done = submittedIds.has(v.id);
+      return `<div class="status-item">
+        <span class="vendor-name">${escHtml(v.name)}</span>
+        <span class="badge ${done ? 'badge-success' : 'badge-danger'}">${done ? '✓ 入力済' : '未入力'}</span>
+      </div>`;
+    }).join('');
+  });
+
+  document.getElementById('today-status').innerHTML = html
+    ? '<div class="status-list">' + html + '</div>'
+    : '<p class="text-muted">業者が登録されていません</p>';
+  document.getElementById('bulk-btn').style.display = '';
+}
+
+function loadReports() {
+  allReports = Storage.getAllReports();
+  filtered = [...allReports];
+  renderList();
+}
+
+function applyFilter() {
+  const from = document.getElementById('f-from').value;
+  const to = document.getElementById('f-to').value;
+  const num = document.getElementById('f-number').value.trim().toLowerCase();
+  filtered = allReports.filter(r => {
+    if (from && r.date < from) return false;
+    if (to && r.date > to) return false;
+    if (num && !r.siteNumber.toLowerCase().includes(num) && !r.siteName.toLowerCase().includes(num)) return false;
+    return true;
+  });
+  renderList();
+}
+
+function clearFilter() {
+  document.getElementById('f-from').value = '';
+  document.getElementById('f-to').value = '';
+  document.getElementById('f-number').value = '';
+  filtered = [...allReports];
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById('report-list');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📄</div><p>日報がありません</p></div>';
+    return;
+  }
+  list.innerHTML = filtered.map(r => {
+    const totalWorkers = (r.rows||[]).reduce((s, row) => s + (parseInt(row.actualWorkers)||0), 0);
+    return `
+    <div class="report-card">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        ${bulkMode ? `<input type="checkbox" class="bulk-check" data-id="${r.id}" style="width:20px;height:20px;margin-top:2px;accent-color:#1e40af;">` : ''}
+        <div class="report-info">
+          <h3>${App.formatDate(r.date)}</h3>
+          <p>【${escHtml(r.siteNumber)}】${escHtml(r.siteName)}</p>
+          <p style="margin-top:2px;">合計 ${totalWorkers}人　${(r.rows||[]).length}業者</p>
+        </div>
+      </div>
+      <div class="report-actions">
+        <a href="edit.html?site=${encodeURIComponent(r.siteNumber)}&date=${r.date}" class="btn btn-outline btn-sm">編集</a>
+        <button class="btn btn-primary btn-sm" onclick="printOne('${r.siteNumber}','${r.date}')">📄 PDF</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteReport('${r.siteNumber}','${r.date}')">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+  updateBulkInfo();
+}
+
+function toggleBulk() {
+  bulkMode = !bulkMode;
+  document.getElementById('bulk-panel').style.display = bulkMode ? '' : 'none';
+  document.getElementById('bulk-btn').textContent = bulkMode ? 'キャンセル' : 'まとめて印刷';
+  renderList();
+}
+
+function selectAll() {
+  document.querySelectorAll('.bulk-check').forEach(c => c.checked = true);
+  updateBulkInfo();
+}
+
+function deselectAll() {
+  document.querySelectorAll('.bulk-check').forEach(c => c.checked = false);
+  updateBulkInfo();
+}
+
+function updateBulkInfo() {
+  if (!bulkMode) return;
+  const count = document.querySelectorAll('.bulk-check:checked').length;
+  document.getElementById('bulk-info').textContent = count + '件選択中';
+}
+
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('bulk-check')) updateBulkInfo();
+});
+
+async function bulkPrint() {
+  const checked = [...document.querySelectorAll('.bulk-check:checked')];
+  if (checked.length === 0) { alert('日報を選択してください'); return; }
+  const ids = new Set(checked.map(c => c.dataset.id));
+  const selected = filtered.filter(r => ids.has(r.id)).sort((a,b) => a.date.localeCompare(b.date));
+  const dates = selected.map(r => r.date.replace(/-/g,''));
+  const rangeLabel = dates[0] + '-' + dates[dates.length-1];
+  const siteNumbers = [...new Set(selected.map(r => r.siteNumber))].join('_');
+  App.toast('PDF生成中...');
+  try {
+    await PdfExport.generateBulkPDF(selected, rangeLabel, siteNumbers);
+  } catch(e) {
+    alert('PDF生成に失敗しました: ' + e.message);
+  }
+}
+
+async function printOne(siteNumber, date) {
+  const report = Storage.getReport(siteNumber, date);
+  if (!report) { alert('日報が見つかりません'); return; }
+  App.toast('PDF生成中...');
+  try {
+    await PdfExport.generateReportPDF(report);
+  } catch(e) {
+    alert('PDF生成に失敗しました: ' + e.message);
+  }
+}
+
+function deleteReport(siteNumber, date) {
+  if (!confirm('この日報を削除しますか？')) return;
+  Storage.deleteReport(siteNumber, date);
+  App.toast('削除しました', 'warning');
+  loadReports();
+  renderTodayStatus();
+}
+
+function openNewModal() {
+  const sites = Storage.getSites();
+  if (sites.length === 0) { alert('現場を先に登録してください'); return; }
+
+  // Populate site select
+  const sel = document.getElementById('modal-site');
+  sel.innerHTML = '';
+  const active = Storage.getActiveSite();
+  sites.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.number;
+    opt.textContent = '【' + s.number + '】' + s.name;
+    if (active && s.id === active.id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  setModalDate(1); // デフォルト翌日
+  document.getElementById('new-modal').style.display = '';
+  checkModalExists();
+}
+
+function setModalDate(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const dateStr = d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+  document.getElementById('modal-date').value = dateStr;
+  checkModalExists();
+}
+
+function checkModalExists() {
+  const siteNumber = document.getElementById('modal-site').value;
+  const date = document.getElementById('modal-date').value;
+  if (!siteNumber || !date) return;
+  const exists = !!Storage.getReport(siteNumber, date);
+  document.getElementById('modal-exists-warn').style.display = exists ? '' : 'none';
+}
+
+function closeNewModal() {
+  document.getElementById('new-modal').style.display = 'none';
+}
+
+function goNewReport() {
+  const siteNumber = document.getElementById('modal-site').value;
+  const date = document.getElementById('modal-date').value;
+  if (!siteNumber || !date) { alert('現場と日付を選択してください'); return; }
+  location.href = 'edit.html?site=' + encodeURIComponent(siteNumber) + '&date=' + date;
+}
+
+function goToday() {
+  const site = Storage.getActiveSite() || Storage.getSites()[0];
+  if (!site) { alert('現場を先に登録してください'); return; }
+  location.href = 'edit.html?site=' + encodeURIComponent(site.number) + '&date=' + App.today();
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Export/Import
+function exportData() {
+  const json = Storage.exportAll();
+  const a = document.createElement('a');
+  a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
+  a.download = 'koji-nippo-backup-' + App.today() + '.json';
+  a.click();
+}
+
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      if (!confirm('現在のデータを上書きして復元しますか？')) return;
+      try {
+        Storage.importAll(ev.target.result);
+        App.toast('復元しました');
+        init();
+      } catch(err) {
+        alert('インポートに失敗しました: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// モーダル内の変更を検知して既存チェック
+document.addEventListener('change', e => {
+  if (e.target.id === 'modal-site' || e.target.id === 'modal-date') {
+    checkModalExists();
+  }
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日報編集</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.num-input { text-align: center; }
+.fire-check { width: 24px; height: 24px; accent-color: #dc2626; cursor: pointer; }
+.sig-mini-wrapper {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fafafa;
+  touch-action: none;
+}
+.sig-mini-wrapper canvas {
+  display: block;
+  width: 100%;
+  height: 80px;
+  cursor: crosshair;
+}
+.row-number {
+  background: #1e40af;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <h1>📝 日報編集</h1>
+  <div class="header-actions">
+    <span class="header-site-name" id="header-site"></span>
+    <button class="btn btn-success btn-sm" onclick="saveReport()">💾 保存</button>
+    <a href="list.html" class="btn btn-secondary btn-sm">← 一覧</a>
+  </div>
+</header>
+
+<div class="page-wrapper">
+  <!-- Header info -->
+  <div class="card">
+    <div class="card-title">基本情報</div>
+    <div class="input-row">
+      <div class="form-group">
+        <label>工事日 <span style="color:#dc2626">*</span></label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="form-group">
+        <label>顧客名</label>
+        <input type="text" id="f-client" placeholder="顧客名">
+      </div>
+    </div>
+    <div class="input-row">
+      <div class="form-group">
+        <label>工事番号</label>
+        <input type="text" id="f-site-number" placeholder="工事番号">
+      </div>
+      <div class="form-group">
+        <label>工事件名</label>
+        <input type="text" id="f-site-name" placeholder="工事件名">
+      </div>
+    </div>
+    <div class="input-row">
+      <div class="form-group">
+        <label>現場代理人</label>
+        <input type="text" id="f-representative" placeholder="現場代理人">
+      </div>
+      <div class="form-group">
+        <label>係員</label>
+        <input type="text" id="f-staff" placeholder="係員">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>会社名</label>
+      <input type="text" id="f-company" placeholder="例: 株式会社〇〇 中部支店">
+    </div>
+  </div>
+
+  <!-- Worker rows -->
+  <div class="card">
+    <div class="flex-between mb-8">
+      <div class="card-title" style="margin-bottom:0">作業員・安全衛生</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span>合計: <strong id="total-workers">0</strong>人 / <strong id="total-vehicles">0</strong>台</span>
+      </div>
+    </div>
+    <div id="worker-rows"></div>
+    <div class="mt-16 flex-row">
+      <button class="btn btn-outline" onclick="addRow()">＋ 行を追加</button>
+      <div class="form-group" style="flex:1;max-width:220px;margin-bottom:0;">
+        <select id="vendor-select">
+          <option value="">業者を選んで追加...</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="addFromVendor()">追加</button>
+    </div>
+  </div>
+
+  <!-- Footer notes -->
+  <div class="card">
+    <div class="card-title">備考・その他</div>
+    <div class="form-group">
+      <label>搬入予定</label>
+      <textarea id="f-delivery" placeholder="本日の搬入予定"></textarea>
+    </div>
+    <div class="form-group">
+      <label>本日の残業予定</label>
+      <textarea id="f-overtime" placeholder="残業予定"></textarea>
+    </div>
+    <div class="form-group">
+      <label>行番等・メモ</label>
+      <textarea id="f-memo" placeholder="メモ・連絡事項"></textarea>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="flex-row" style="justify-content:space-between;padding-bottom:32px;">
+    <button class="btn btn-success" onclick="saveReport()">💾 保存する</button>
+    <button class="btn btn-primary" onclick="exportPDF()">📄 PDF出力</button>
+    <a href="list.html" class="btn btn-secondary">← 一覧に戻る</a>
+  </div>
+</div>
+
+<!-- Signature modal -->
+<div id="sig-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:440px;">
+    <h2>✍️ 署名</h2>
+    <div class="sig-wrapper">
+      <canvas id="modal-sig-canvas"></canvas>
+      <div class="sig-hint" id="modal-sig-hint">ここにサインしてください</div>
+    </div>
+    <div class="sig-actions mt-8">
+      <button class="btn btn-outline btn-sm" onclick="clearModalSig()">クリア</button>
+    </div>
+    <div class="flex-row mt-16" style="justify-content:center;gap:12px;">
+      <button class="btn btn-secondary" onclick="closeModalSig()">キャンセル</button>
+      <button class="btn btn-success" onclick="saveModalSig()">✓ 確定</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="js/signature.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="js/pdf.js"></script>
+<script>
+if (!Auth.requireAuth()) { /* redirect */ }
+
+const params = new URLSearchParams(location.search);
+const siteNumber = params.get('site') || '';
+const dateParam = params.get('date') || App.today();
+let currentSite = null;
+let report = null;
+let vendorList = [];
+let modalSigPad = null;
+let currentSigRowId = null;
+
+function init() {
+  const sites = Storage.getSites();
+  currentSite = sites.find(s => s.number === siteNumber) || Storage.getActiveSite();
+  if (!currentSite) { alert('現場が見つかりません'); location.href='list.html'; return; }
+
+  document.getElementById('header-site').textContent = '【' + currentSite.number + '】' + currentSite.name;
+  vendorList = Storage.getVendors(currentSite.number);
+
+  // Populate vendor select
+  const sel = document.getElementById('vendor-select');
+  vendorList.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = v.name;
+    sel.appendChild(opt);
+  });
+
+  // Load or create report
+  report = Storage.getReport(currentSite.number, dateParam);
+  const prevReport = Storage.getPrevReport(currentSite.number, dateParam);
+  if (!report) {
+    report = App.newReport(currentSite, dateParam);
+  }
+  // Ensure all registered vendors have rows
+  vendorList.forEach(v => {
+    if (!report.rows.find(r => r.vendorId === v.id)) {
+      const row = App.newRow(v);
+      if (prevReport) {
+        const prevRow = prevReport.rows.find(r => r.vendorId === v.id);
+        if (prevRow) row.prevTotal = (parseInt(prevRow.prevTotal)||0) + (parseInt(prevRow.actualWorkers)||0);
+      }
+      report.rows.push(row);
+    }
+  });
+
+  // Merge worker inputs that aren't already in report rows
+  const dateStr = dateParam.replace(/-/g,'');
+  const inputs = Storage.getWorkerInputs(currentSite.number, dateStr);
+  inputs.forEach(inp => {
+    const existing = report.rows.find(r => r.vendorId === inp.vendorId);
+    if (existing) {
+      if (!existing.actualWorkers) existing.actualWorkers = inp.actualWorkers;
+      if (!existing.vehicles) existing.vehicles = inp.vehicles;
+      if (!existing.signature) existing.signature = inp.signature;
+      existing.submittedByWorker = true;
+    }
+  });
+
+  fillForm();
+  renderRows();
+  initModalSig();
+}
+
+function fillForm() {
+  document.getElementById('f-date').value = report.date;
+  document.getElementById('f-client').value = report.client || '';
+  document.getElementById('f-site-number').value = report.siteNumber || '';
+  document.getElementById('f-site-name').value = report.siteName || '';
+  document.getElementById('f-representative').value = report.representative || '';
+  document.getElementById('f-staff').value = report.staff || '';
+  document.getElementById('f-company').value = report.company || '';
+  document.getElementById('f-delivery').value = report.deliveryPlan || '';
+  document.getElementById('f-overtime').value = report.overtimePlan || '';
+  document.getElementById('f-memo').value = report.memo || '';
+}
+
+function renderRows() {
+  const container = document.getElementById('worker-rows');
+  container.innerHTML = '';
+  (report.rows || []).forEach((row, i) => {
+    container.appendChild(buildRowEl(row, i));
+  });
+  updateTotals();
+}
+
+function buildRowEl(row, i) {
+  const div = document.createElement('div');
+  div.className = 'worker-row-card' + (row.submittedByWorker ? ' worker-submitted' : '');
+  div.id = 'row-' + row.id;
+  div.innerHTML = `
+    <div class="worker-row-header">
+      <span class="row-number">#${i+1} ${escHtml(row.vendorName || '（業者未設定）')}</span>
+      ${row.submittedByWorker ? '<span class="badge badge-success">✓ 職人入力済</span>' : ''}
+      <button class="delete-row-btn" onclick="deleteRow('${row.id}')" title="この行を削除">✕</button>
+    </div>
+
+    <div class="input-row" style="gap:8px;">
+      <div class="form-group">
+        <label>業者名</label>
+        <select onchange="updateRowVendor('${row.id}', this.value)" style="font-size:14px;">
+          <option value="">（直接入力）</option>
+          ${vendorList.map(v => `<option value="${v.id}" ${v.id===row.vendorId?'selected':''}>${escHtml(v.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>業者名（直接入力）</label>
+        <input type="text" value="${escHtml(row.vendorName)}" oninput="updateRow('${row.id}','vendorName',this.value)" placeholder="業者名">
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr) repeat(3,1fr);gap:8px;margin-bottom:12px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>予定人数</label>
+        <input type="number" class="num-input" value="${row.plannedWorkers}" min="0" oninput="updateRow('${row.id}','plannedWorkers',this.value)">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>本日人数</label>
+        <input type="number" class="num-input" value="${row.actualWorkers}" min="0" oninput="updateRow('${row.id}','actualWorkers',this.value);updateTotals()">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>前回累計</label>
+        <input type="number" class="num-input" value="${row.prevTotal}" min="0" oninput="updateRow('${row.id}','prevTotal',this.value)">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>累計</label>
+        <input type="number" class="num-input" id="total-${row.id}" value="${calcTotal(row)}" readonly style="background:#f1f5f9;color:#64748b;">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>車両台数</label>
+        <input type="number" class="num-input" value="${row.vehicles}" min="0" oninput="updateRow('${row.id}','vehicles',this.value);updateTotals()">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>確認者</label>
+        <input type="text" value="${escHtml(row.checker)}" oninput="updateRow('${row.id}','checker',this.value)">
+      </div>
+    </div>
+
+    <div class="input-row" style="gap:8px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>作業指示内容</label>
+        <textarea oninput="updateRow('${row.id}','workInstruction',this.value)" style="height:60px;">${escHtml(row.workInstruction)}</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>安全注意事項</label>
+        <textarea oninput="updateRow('${row.id}','safetyNotes',this.value)" style="height:60px;">${escHtml(row.safetyNotes)}</textarea>
+      </div>
+    </div>
+
+    <div class="flex-row mt-8" style="align-items:flex-start;gap:16px;">
+      <div class="checkbox-row" style="margin:0;">
+        <input type="checkbox" class="fire-check" ${row.fireCheck ? 'checked' : ''} onchange="updateRow('${row.id}','fireCheck',this.checked)" id="fire-${row.id}">
+        <label for="fire-${row.id}" style="color:#dc2626;font-weight:600;">🔥 火気使用あり</label>
+      </div>
+      <div style="flex:1;">
+        <label style="font-size:13px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">署名</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          ${row.signature
+            ? `<img src="${row.signature}" class="mini-sig" style="height:50px;max-width:140px;border:1px solid #e2e8f0;border-radius:4px;object-fit:contain;">`
+            : `<div style="width:120px;height:50px;border:2px dashed #e2e8f0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#94a3b8;">署名なし</div>`
+          }
+          <button class="btn btn-outline btn-sm" onclick="openSig('${row.id}')">✍️ 署名</button>
+          ${row.signature ? `<button class="btn btn-secondary btn-sm" onclick="clearRowSig('${row.id}')">クリア</button>` : ''}
+        </div>
+      </div>
+    </div>
+    ${row.nextWorkDate ? `
+    <div style="margin-top:10px;padding:8px 12px;background:#eff6ff;border-radius:8px;font-size:13px;color:#1e40af;">
+      📅 次回作業日：<strong>${row.nextWorkDate === '未定' ? '未定' : App.formatDate(row.nextWorkDate)}</strong>
+      <span style="color:#64748b;font-size:11px;margin-left:8px;">（職人入力）</span>
+    </div>` : ''}
+  `;
+  return div;
+}
+
+function calcTotal(row) {
+  const p = parseInt(row.prevTotal) || 0;
+  const a = parseInt(row.actualWorkers) || 0;
+  return p + a || '';
+}
+
+function updateTotals() {
+  let totalWorkers = 0, totalVehicles = 0;
+  (report.rows || []).forEach(row => {
+    totalWorkers += parseInt(row.actualWorkers) || 0;
+    totalVehicles += parseInt(row.vehicles) || 0;
+    const el = document.getElementById('total-' + row.id);
+    if (el) el.value = calcTotal(row) || '';
+  });
+  document.getElementById('total-workers').textContent = totalWorkers;
+  document.getElementById('total-vehicles').textContent = totalVehicles;
+}
+
+function updateRow(id, field, value) {
+  const row = report.rows.find(r => r.id === id);
+  if (!row) return;
+  row[field] = (field === 'fireCheck') ? value : value;
+  autoSave();
+}
+
+function updateRowVendor(id, vendorId) {
+  const row = report.rows.find(r => r.id === id);
+  if (!row) return;
+  const v = vendorList.find(v => v.id === vendorId);
+  if (v) {
+    row.vendorId = v.id;
+    row.vendorName = v.name;
+    // Update name input
+    const rowEl = document.getElementById('row-' + id);
+    if (rowEl) {
+      const nameInput = rowEl.querySelectorAll('input[type=text]')[0];
+      if (nameInput) nameInput.value = v.name;
+    }
+  }
+  autoSave();
+}
+
+function addRow() {
+  const row = App.newRow(null);
+  report.rows.push(row);
+  renderRows();
+  autoSave();
+}
+
+function addFromVendor() {
+  const sel = document.getElementById('vendor-select');
+  const vendorId = sel.value;
+  if (!vendorId) { addRow(); return; }
+  const v = vendorList.find(v => v.id === vendorId);
+  if (!v) return;
+  const existing = report.rows.find(r => r.vendorId === vendorId);
+  if (existing) { App.toast('この業者はすでに追加されています', 'warning'); return; }
+  const row = App.newRow(v);
+  const prev = Storage.getPrevReport(currentSite.number, report.date);
+  if (prev) {
+    const prevRow = prev.rows.find(r => r.vendorId === v.id);
+    if (prevRow) row.prevTotal = (parseInt(prevRow.prevTotal)||0) + (parseInt(prevRow.actualWorkers)||0);
+  }
+  report.rows.push(row);
+  sel.value = '';
+  renderRows();
+  autoSave();
+}
+
+function deleteRow(id) {
+  if (!confirm('この行を削除しますか？')) return;
+  report.rows = report.rows.filter(r => r.id !== id);
+  renderRows();
+  autoSave();
+}
+
+// Signature modal
+function initModalSig() {
+  const canvas = document.getElementById('modal-sig-canvas');
+  modalSigPad = new SignaturePad(canvas, { lineWidth: 3 });
+  canvas.addEventListener('mousedown', () => document.getElementById('modal-sig-hint').style.opacity = '0');
+  canvas.addEventListener('touchstart', () => document.getElementById('modal-sig-hint').style.opacity = '0', { passive: true });
+}
+
+function openSig(rowId) {
+  currentSigRowId = rowId;
+  const row = report.rows.find(r => r.id === rowId);
+  if (modalSigPad) {
+    modalSigPad.clear();
+    if (row && row.signature) {
+      modalSigPad.fromDataURL(row.signature);
+      document.getElementById('modal-sig-hint').style.opacity = '0';
+    } else {
+      document.getElementById('modal-sig-hint').style.opacity = '1';
+    }
+  }
+  document.getElementById('sig-modal').style.display = '';
+}
+
+function clearModalSig() {
+  modalSigPad.clear();
+  document.getElementById('modal-sig-hint').style.opacity = '1';
+}
+
+function closeModalSig() {
+  document.getElementById('sig-modal').style.display = 'none';
+  currentSigRowId = null;
+}
+
+function saveModalSig() {
+  if (!currentSigRowId) return;
+  const sig = modalSigPad.toDataURL();
+  const row = report.rows.find(r => r.id === currentSigRowId);
+  if (row) {
+    row.signature = sig;
+    autoSave();
+    renderRows();
+  }
+  closeModalSig();
+}
+
+function clearRowSig(rowId) {
+  const row = report.rows.find(r => r.id === rowId);
+  if (row) {
+    row.signature = null;
+    autoSave();
+    renderRows();
+  }
+}
+
+function collectReport() {
+  report.date = document.getElementById('f-date').value;
+  report.client = document.getElementById('f-client').value;
+  report.siteNumber = document.getElementById('f-site-number').value;
+  report.siteName = document.getElementById('f-site-name').value;
+  report.representative = document.getElementById('f-representative').value;
+  report.staff = document.getElementById('f-staff').value;
+  report.company = document.getElementById('f-company').value;
+  report.deliveryPlan = document.getElementById('f-delivery').value;
+  report.overtimePlan = document.getElementById('f-overtime').value;
+  report.memo = document.getElementById('f-memo').value;
+}
+
+let saveTimer = null;
+function autoSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    collectReport();
+    Storage.saveReport(report);
+  }, 800);
+}
+
+function saveReport() {
+  collectReport();
+  Storage.saveReport(report);
+  App.toast('保存しました');
+}
+
+async function exportPDF() {
+  collectReport();
+  Storage.saveReport(report);
+  App.toast('PDF生成中...');
+  try {
+    await PdfExport.generateReportPDF(report);
+  } catch(e) {
+    alert('PDF生成に失敗しました: ' + e.message);
+  }
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Auto-save on any input change
+document.addEventListener('input', e => {
+  if (e.target.closest('.page-wrapper')) autoSave();
+});
+
+init();
+</script>
+</body>
+</html>

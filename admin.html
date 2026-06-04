@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>管理者ログイン</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+body { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); }
+.login-card {
+  background: white; border-radius: 20px; padding: 36px 28px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  width: 100%; max-width: 340px;
+}
+</style>
+</head>
+<body>
+<div class="full-center">
+  <div class="login-card">
+    <div class="text-center" style="margin-bottom:28px;">
+      <div style="font-size:40px;margin-bottom:8px;">🔐</div>
+      <div style="font-size:20px;font-weight:700;color:#1e40af;">管理者ログイン</div>
+      <div id="first-time-msg" style="display:none;font-size:12px;color:#64748b;margin-top:6px;">初回：PINを設定してください（4〜6桁）</div>
+    </div>
+
+    <div class="pin-display" id="pin-display">
+      <div class="pin-dot" id="dot-0"></div>
+      <div class="pin-dot" id="dot-1"></div>
+      <div class="pin-dot" id="dot-2"></div>
+      <div class="pin-dot" id="dot-3"></div>
+      <div class="pin-dot" id="dot-4" style="display:none"></div>
+      <div class="pin-dot" id="dot-5" style="display:none"></div>
+    </div>
+
+    <div id="error-msg" style="display:none;text-align:center;color:#dc2626;font-size:13px;margin-bottom:12px;">
+      PINが違います
+    </div>
+
+    <div class="numpad">
+      <button class="numpad-btn" onclick="pressNum('1')">1</button>
+      <button class="numpad-btn" onclick="pressNum('2')">2</button>
+      <button class="numpad-btn" onclick="pressNum('3')">3</button>
+      <button class="numpad-btn" onclick="pressNum('4')">4</button>
+      <button class="numpad-btn" onclick="pressNum('5')">5</button>
+      <button class="numpad-btn" onclick="pressNum('6')">6</button>
+      <button class="numpad-btn" onclick="pressNum('7')">7</button>
+      <button class="numpad-btn" onclick="pressNum('8')">8</button>
+      <button class="numpad-btn" onclick="pressNum('9')">9</button>
+      <button class="numpad-btn" onclick="clearPin()" style="font-size:14px;color:#64748b;">クリア</button>
+      <button class="numpad-btn" onclick="pressNum('0')">0</button>
+      <button class="numpad-btn" onclick="backspace()" style="font-size:20px;">⌫</button>
+    </div>
+
+    <div style="margin-top:20px;text-align:center;">
+      <a href="index.html" style="font-size:13px;color:#64748b;">← トップに戻る</a>
+    </div>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script>
+let pin = '';
+const MAX = 6;
+const MIN = 4;
+
+function init() {
+  if (Auth.isLoggedIn()) {
+    redirectAfterLogin();
+    return;
+  }
+  if (!Storage.getPin()) {
+    document.getElementById('first-time-msg').style.display = '';
+  }
+}
+
+function pressNum(n) {
+  if (pin.length >= MAX) return;
+  pin += n;
+  updateDots();
+  if (pin.length >= MIN && pin.length <= MAX) {
+    // Try to auto-submit when PIN matches stored length
+    const stored = Storage.getPin();
+    if (stored && pin.length === stored.length) {
+      setTimeout(tryLogin, 100);
+    } else if (!stored && pin.length === MIN) {
+      // New PIN: confirm
+      if (pin.length === MIN) {
+        setTimeout(tryLogin, 100);
+      }
+    }
+  }
+}
+
+function backspace() {
+  pin = pin.slice(0, -1);
+  updateDots();
+  document.getElementById('error-msg').style.display = 'none';
+}
+
+function clearPin() {
+  pin = '';
+  updateDots();
+  document.getElementById('error-msg').style.display = 'none';
+}
+
+function updateDots() {
+  const stored = Storage.getPin();
+  const len = stored ? stored.length : MIN;
+  // Show dots based on PIN length
+  for (let i = 0; i < MAX; i++) {
+    const dot = document.getElementById('dot-' + i);
+    if (i < len) {
+      dot.style.display = '';
+      dot.classList.toggle('filled', i < pin.length);
+    } else {
+      dot.style.display = 'none';
+    }
+  }
+}
+
+function tryLogin() {
+  const ok = Auth.login(pin);
+  if (ok) {
+    redirectAfterLogin();
+  } else {
+    document.getElementById('error-msg').style.display = '';
+    pin = '';
+    updateDots();
+    // Shake animation
+    const disp = document.getElementById('pin-display');
+    disp.style.animation = 'none';
+    disp.offsetHeight;
+    disp.style.animation = 'shake .3s';
+  }
+}
+
+function redirectAfterLogin() {
+  const params = new URLSearchParams(location.search);
+  const next = params.get('next');
+  if (next && next.startsWith(location.origin)) {
+    location.href = next;
+  } else {
+    location.href = 'list.html';
+  }
+}
+
+// Keyboard support
+document.addEventListener('keydown', e => {
+  if (e.key >= '0' && e.key <= '9') pressNum(e.key);
+  else if (e.key === 'Backspace') backspace();
+  else if (e.key === 'Enter' && pin.length >= MIN) tryLogin();
+});
+
+const style = document.createElement('style');
+style.textContent = '@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }';
+document.head.appendChild(style);
+
+init();
+updateDots();
+</script>
+</body>
+</html>
