@@ -173,9 +173,12 @@ function showQR(siteNumber, siteName) {
   const base = location.origin + location.pathname.replace('genba.html', 'worker.html');
 
   // 現場・業者データをURLに埋め込む（スマホ側にLocalStorageがなくても動くように）
-  const site = Storage.getSite(Storage.getSites().find(s => s.number === siteNumber)?.id || '');
+  const site = Storage.getSites().find(s => s.number === siteNumber) || null;
   const vendors = Storage.getVendors(siteNumber);
-  const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ site, vendors }))));
+  // URL-safe base64（+→- /→_ =除去）でエンコード
+  const json = JSON.stringify({ site, vendors });
+  const payload = btoa(unescape(encodeURIComponent(json)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   const url = base + '?site=' + encodeURIComponent(siteNumber) + '&d=' + payload;
 
   document.getElementById('qr-modal-title').textContent = '📱 ' + siteName;

@@ -397,7 +397,10 @@ function init() {
   // QRコードにデータが埋め込まれている場合はLocalStorageに保存
   if (dataParam) {
     try {
-      const decoded = JSON.parse(decodeURIComponent(escape(atob(dataParam))));
+      // URL-safe base64（-→+ _→/ パディング復元）でデコード
+      const b64 = dataParam.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(padded))));
       if (decoded.site)    Storage.saveSite(decoded.site);
       if (decoded.vendors) Storage.saveVendors(decoded.site.number, decoded.vendors);
     } catch(e) { /* デコード失敗は無視 */ }
