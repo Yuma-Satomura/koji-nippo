@@ -105,6 +105,7 @@
 </style>
 </head>
 <body>
+<div id="page-loading"><div class="spinner"></div>読み込み中...</div>
 <div class="worker-page">
   <div class="worker-header">
     <h1>🏗️ 工事日報入力</h1>
@@ -385,38 +386,50 @@ let sigPad = null;
 let currentSite = null;
 let today = App.today();
 
+function loading(show) {
+  document.getElementById('page-loading').style.display = show ? '' : 'none';
+}
+
 // ---- 初期化 ----
-function init() {
-  const params = new URLSearchParams(location.search);
-  const siteParam = params.get('site');
-  const dataParam = params.get('d');
+async function init() {
+  loading(true);
+  try {
+    const params = new URLSearchParams(location.search);
+    const siteParam = params.get('site');
+    const dataParam = params.get('d');
 
-  // QRコードにデータが埋め込まれている場合はLocalStorageに保存
-  if (dataParam) {
-    try {
-      // URL-safe base64（-→+ _→/ パディング復元）でデコード
-      const b64 = dataParam.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
-      const decoded = JSON.parse(decodeURIComponent(escape(atob(padded))));
-      if (decoded.site)    Storage.saveSite(decoded.site);
-      if (decoded.vendors) Storage.saveVendors(decoded.site.number, decoded.vendors);
-    } catch(e) { /* デコード失敗は無視 */ }
+    // QRコードにデータが埋め込まれている場合はSupabaseに保存
+    if (dataParam) {
+      try {
+        // URL-safe base64（-→+ _→/ パディング復元）でデコード
+        const b64 = dataParam.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+        const decoded = JSON.parse(decodeURIComponent(escape(atob(padded))));
+        if (decoded.site)    await Storage.saveSite(decoded.site);
+        if (decoded.vendors) await Storage.saveVendors(decoded.site.number, decoded.vendors);
+      } catch(e) { /* デコード失敗は無視 */ }
+    }
+
+    if (siteParam) {
+      const sites = await Storage.getSites();
+      currentSite = sites.find(s => s.number === siteParam) || null;
+    } else {
+      currentSite = await Storage.getActiveSite();
+    }
+
+    if (!currentSite) {
+      document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;font-family:sans-serif;background:#1e3a8a;min-height:100vh;color:white;"><div style="font-size:48px;margin-bottom:16px;">⚠️</div><p style="font-size:16px;">現場が見つかりません。<br>管理者にQRコードの再発行を<br>依頼してください。</p></div>';
+      return;
+    }
+    document.getElementById('worker-site-name').textContent = '【' + currentSite.number + '】' + currentSite.name;
+    document.getElementById('worker-date').textContent = App.formatDate(today);
+
+    await loadVendors();
+    initSig();
+    initNextDateLabels();
+  } finally {
+    loading(false);
   }
-
-  currentSite = siteParam
-    ? (Storage.getSites().find(s => s.number === siteParam) || null)
-    : Storage.getActiveSite();
-
-  if (!currentSite) {
-    document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;font-family:sans-serif;background:#1e3a8a;min-height:100vh;color:white;"><div style="font-size:48px;margin-bottom:16px;">⚠️</div><p style="font-size:16px;">現場が見つかりません。<br>管理者にQRコードの再発行を<br>依頼してください。</p></div>';
-    return;
-  }
-  document.getElementById('worker-site-name').textContent = '【' + currentSite.number + '】' + currentSite.name;
-  document.getElementById('worker-date').textContent = App.formatDate(today);
-
-  loadVendors();
-  initSig();
-  initNextDateLabels();
 }
 
 // ---- 画面切替 ----
@@ -426,8 +439,8 @@ function showScreen(id) {
 }
 
 // ---- 業者 ----
-function loadVendors() {
-  const vendors = Storage.getVendors(currentSite.number);
+async function loadVendors() {
+  const vendors = await Storage.getVendors(currentSite.number);
   const list = document.getElementById('vendor-list');
   list.innerHTML = '';
   if (vendors.length === 0) {
@@ -456,9 +469,9 @@ function showModeSelect() {
 }
 
 // ---- 今日モード開始 ----
-function startToday() {
+async function startToday() {
   // 今日の日報から前回登録データを読み込んで自動入力
-  const report = Storage.getReport(currentSite.number, today);
+  const report = await Storage.getReport(currentSite.number, today);
   const row = report ? report.rows.find(r => r.vendorId === selectedVendor.id) : null;
   let preloaded = false;
 
@@ -575,14 +588,14 @@ function onCalInput() {
   document.getElementById('next-date-next-btn').disabled = false;
 }
 
-function showNextInput() {
+async function showNextInput() {
   if (!nextWorkDate) return;
   const label = nextWorkDate === '未定' ? '未定' : App.formatDate(nextWorkDate);
   document.getElementById('next-date-display').textContent = label;
 
   // 既存登録があればプレロード
   if (nextWorkDate !== '未定') {
-    const report = Storage.getReport(currentSite.number, nextWorkDate);
+    const report = await Storage.getReport(currentSite.number, nextWorkDate);
     const row = report ? report.rows.find(r => r.vendorId === selectedVendor.id) : null;
     if (row) {
       nextWorkers = parseInt(row.plannedWorkers) || 0;
@@ -637,7 +650,7 @@ function goNextConfirm() {
 }
 
 // ---- 今日送信 ----
-function submitToday() {
+async function submitToday() {
   const sig = sigPad.toDataURL();
   const workInstruction = document.getElementById('today-work').value;
   const safetyNotes = document.getElementById('today-safety').value;
@@ -650,11 +663,11 @@ function submitToday() {
     signature: sig, submittedAt: new Date().toISOString()
   });
 
-  let report = Storage.getReport(currentSite.number, today) || App.newReport(currentSite, today);
+  let report = (await Storage.getReport(currentSite.number, today)) || App.newReport(currentSite, today);
   let row = report.rows.find(r => r.vendorId === selectedVendor.id);
   if (!row) {
     row = App.newRow(selectedVendor);
-    const prev = Storage.getPrevReport(currentSite.number, today);
+    const prev = await Storage.getPrevReport(currentSite.number, today);
     if (prev) {
       const pr = prev.rows.find(r => r.vendorId === selectedVendor.id);
       if (pr) row.prevTotal = (parseInt(pr.prevTotal)||0) + (parseInt(pr.actualWorkers)||0);
@@ -662,7 +675,7 @@ function submitToday() {
     report.rows.push(row);
   }
   Object.assign(row, { actualWorkers: todayWorkers, vehicles: todayVehicles, workInstruction, safetyNotes, fireCheck: todayFire, signature: sig, submittedByWorker: true });
-  Storage.saveReport(report);
+  await Storage.saveReport(report);
 
   document.getElementById('done-title').textContent = '送信完了しました';
   document.getElementById('done-sub').textContent = selectedVendor.name + ' の本日分を受け付けました';
@@ -670,22 +683,22 @@ function submitToday() {
 }
 
 // ---- 次回送信 ----
-function submitNext() {
+async function submitNext() {
   if (nextWorkDate === '未定') {
     // 未定の場合は今日の日報に nextWorkDate だけ記録
-    let report = Storage.getReport(currentSite.number, today) || App.newReport(currentSite, today);
+    let report = (await Storage.getReport(currentSite.number, today)) || App.newReport(currentSite, today);
     let row = report.rows.find(r => r.vendorId === selectedVendor.id);
     if (!row) { row = App.newRow(selectedVendor); report.rows.push(row); }
     row.nextWorkDate = '未定';
-    Storage.saveReport(report);
+    await Storage.saveReport(report);
   } else {
     // 対象日の日報に予定データを保存
-    let report = Storage.getReport(currentSite.number, nextWorkDate) || App.newReport(currentSite, nextWorkDate);
+    let report = (await Storage.getReport(currentSite.number, nextWorkDate)) || App.newReport(currentSite, nextWorkDate);
     let row = report.rows.find(r => r.vendorId === selectedVendor.id);
     if (!row) {
       row = App.newRow(selectedVendor);
       // 前回累計の引き継ぎ
-      const prev = Storage.getPrevReport(currentSite.number, nextWorkDate);
+      const prev = await Storage.getPrevReport(currentSite.number, nextWorkDate);
       if (prev) {
         const pr = prev.rows.find(r => r.vendorId === selectedVendor.id);
         if (pr) row.prevTotal = (parseInt(pr.prevTotal)||0) + (parseInt(pr.actualWorkers)||0);
@@ -699,7 +712,7 @@ function submitNext() {
       fireCheck: nextFire,
       nextWorkDate
     });
-    Storage.saveReport(report);
+    await Storage.saveReport(report);
   }
 
   const label = nextWorkDate === '未定' ? '未定' : App.formatDate(nextWorkDate);

@@ -32,6 +32,7 @@
 </style>
 </head>
 <body>
+<div id="page-loading"><div class="spinner"></div>読み込み中...</div>
 
 <header class="site-header">
   <h1>📝 日報編集</h1>
@@ -164,57 +165,75 @@ let vendorList = [];
 let modalSigPad = null;
 let currentSigRowId = null;
 
-function init() {
-  const sites = Storage.getSites();
-  currentSite = sites.find(s => s.number === siteNumber) || Storage.getActiveSite();
-  if (!currentSite) { alert('現場が見つかりません'); location.href='list.html'; return; }
+function loading(show) {
+  document.getElementById('page-loading').style.display = show ? '' : 'none';
+}
 
-  document.getElementById('header-site').textContent = '【' + currentSite.number + '】' + currentSite.name;
-  vendorList = Storage.getVendors(currentSite.number);
+async function init() {
+  loading(true);
+  try {
+    const [sites, activeSite] = await Promise.all([
+      Storage.getSites(),
+      Storage.getActiveSite()
+    ]);
+    currentSite = sites.find(s => s.number === siteNumber) || activeSite;
+    if (!currentSite) { alert('現場が見つかりません'); location.href='list.html'; return; }
 
-  // Populate vendor select
-  const sel = document.getElementById('vendor-select');
-  vendorList.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = v.id;
-    opt.textContent = v.name;
-    sel.appendChild(opt);
-  });
+    document.getElementById('header-site').textContent = '【' + currentSite.number + '】' + currentSite.name;
 
-  // Load or create report
-  report = Storage.getReport(currentSite.number, dateParam);
-  const prevReport = Storage.getPrevReport(currentSite.number, dateParam);
-  if (!report) {
-    report = App.newReport(currentSite, dateParam);
-  }
-  // Ensure all registered vendors have rows
-  vendorList.forEach(v => {
-    if (!report.rows.find(r => r.vendorId === v.id)) {
-      const row = App.newRow(v);
-      if (prevReport) {
-        const prevRow = prevReport.rows.find(r => r.vendorId === v.id);
-        if (prevRow) row.prevTotal = (parseInt(prevRow.prevTotal)||0) + (parseInt(prevRow.actualWorkers)||0);
+    const [vendors, existingReport, prevReport] = await Promise.all([
+      Storage.getVendors(currentSite.number),
+      Storage.getReport(currentSite.number, dateParam),
+      Storage.getPrevReport(currentSite.number, dateParam)
+    ]);
+
+    vendorList = vendors;
+
+    // Populate vendor select
+    const sel = document.getElementById('vendor-select');
+    vendorList.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.name;
+      sel.appendChild(opt);
+    });
+
+    // Load or create report
+    report = existingReport;
+    if (!report) {
+      report = App.newReport(currentSite, dateParam);
+    }
+    // Ensure all registered vendors have rows
+    vendorList.forEach(v => {
+      if (!report.rows.find(r => r.vendorId === v.id)) {
+        const row = App.newRow(v);
+        if (prevReport) {
+          const prevRow = prevReport.rows.find(r => r.vendorId === v.id);
+          if (prevRow) row.prevTotal = (parseInt(prevRow.prevTotal)||0) + (parseInt(prevRow.actualWorkers)||0);
+        }
+        report.rows.push(row);
       }
-      report.rows.push(row);
-    }
-  });
+    });
 
-  // Merge worker inputs that aren't already in report rows
-  const dateStr = dateParam.replace(/-/g,'');
-  const inputs = Storage.getWorkerInputs(currentSite.number, dateStr);
-  inputs.forEach(inp => {
-    const existing = report.rows.find(r => r.vendorId === inp.vendorId);
-    if (existing) {
-      if (!existing.actualWorkers) existing.actualWorkers = inp.actualWorkers;
-      if (!existing.vehicles) existing.vehicles = inp.vehicles;
-      if (!existing.signature) existing.signature = inp.signature;
-      existing.submittedByWorker = true;
-    }
-  });
+    // Merge worker inputs that aren't already in report rows
+    const dateStr = dateParam.replace(/-/g,'');
+    const inputs = Storage.getWorkerInputs(currentSite.number, dateStr);
+    inputs.forEach(inp => {
+      const existing = report.rows.find(r => r.vendorId === inp.vendorId);
+      if (existing) {
+        if (!existing.actualWorkers) existing.actualWorkers = inp.actualWorkers;
+        if (!existing.vehicles) existing.vehicles = inp.vehicles;
+        if (!existing.signature) existing.signature = inp.signature;
+        existing.submittedByWorker = true;
+      }
+    });
 
-  fillForm();
-  renderRows();
-  initModalSig();
+    fillForm();
+    renderRows();
+    initModalSig();
+  } finally {
+    loading(false);
+  }
 }
 
 function fillForm() {
@@ -377,7 +396,7 @@ function addRow() {
   autoSave();
 }
 
-function addFromVendor() {
+async function addFromVendor() {
   const sel = document.getElementById('vendor-select');
   const vendorId = sel.value;
   if (!vendorId) { addRow(); return; }
@@ -386,7 +405,7 @@ function addFromVendor() {
   const existing = report.rows.find(r => r.vendorId === vendorId);
   if (existing) { App.toast('この業者はすでに追加されています', 'warning'); return; }
   const row = App.newRow(v);
-  const prev = Storage.getPrevReport(currentSite.number, report.date);
+  const prev = await Storage.getPrevReport(currentSite.number, report.date);
   if (prev) {
     const prevRow = prev.rows.find(r => r.vendorId === v.id);
     if (prevRow) row.prevTotal = (parseInt(prevRow.prevTotal)||0) + (parseInt(prevRow.actualWorkers)||0);
@@ -472,23 +491,23 @@ function collectReport() {
 }
 
 let saveTimer = null;
-function autoSave() {
+async function autoSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
+  saveTimer = setTimeout(async () => {
     collectReport();
-    Storage.saveReport(report);
+    await Storage.saveReport(report);
   }, 800);
 }
 
-function saveReport() {
+async function saveReport() {
   collectReport();
-  Storage.saveReport(report);
+  await Storage.saveReport(report);
   App.toast('保存しました');
 }
 
 async function exportPDF() {
   collectReport();
-  Storage.saveReport(report);
+  await Storage.saveReport(report);
   App.toast('PDF生成中...');
   try {
     await PdfExport.generateReportPDF(report);

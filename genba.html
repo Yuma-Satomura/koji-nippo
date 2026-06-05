@@ -8,6 +8,7 @@
 </head>
 <body>
 
+<div id="page-loading"><div class="spinner"></div>読み込み中...</div>
 <header class="site-header">
   <h1>🏗️ 現場管理</h1>
   <div class="header-actions">
@@ -71,9 +72,12 @@
 <script>
 if (!Auth.requireAuth()) { /* redirect */ }
 
-function render() {
-  const sites = Storage.getSites();
-  const active = Storage.getActiveSite();
+function loading(show) {
+  document.getElementById('page-loading').style.display = show ? '' : 'none';
+}
+
+async function render() {
+  const [sites, active] = await Promise.all([Storage.getSites(), Storage.getActiveSite()]);
   const list = document.getElementById('genba-list');
   if (sites.length === 0) {
     list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>現場がありません。上のフォームから追加してください。</p></div>';
@@ -92,69 +96,69 @@ function render() {
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
         ${isActive
           ? `<button onclick="event.stopPropagation();deactivate()"
-               style="cursor:pointer;border:none;padding:4px 12px;border-radius:20px;background:#1e40af;color:white;font-size:12px;font-weight:700;letter-spacing:.5px;"
+               style="cursor:pointer;border:none;padding:4px 12px;border-radius:20px;background:#1e40af;color:white;font-size:12px;font-weight:700;"
                title="クリックで解除">▶ 稼働中</button>`
-          : `<span style="padding:4px 12px;border-radius:20px;background:#e2e8f0;color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:.5px;">
-               ■ 非アクティブ
-             </span>`
+          : `<span style="padding:4px 12px;border-radius:20px;background:#e2e8f0;color:#94a3b8;font-size:12px;font-weight:700;">■ 非アクティブ</span>`
         }
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();showQR('${s.number}', '${escHtml(s.name)}')">📱 QR</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();showQR('${s.number}','${escHtml(s.name)}')">📱 QR</button>
           <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editGenba('${s.id}')">編集</button>
           <a href="master.html?site=${encodeURIComponent(s.number)}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">業者マスタ</a>
           <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteGenba('${s.id}')">削除</button>
         </div>
-        ${!isActive ? '<p style="font-size:11px;color:#94a3b8;margin:0;text-align:right;">カードをクリックして稼働中に変更</p>' : ''}
+        ${!isActive ? '<p style="font-size:11px;color:#94a3b8;margin:0;text-align:right;">クリックして稼働中に変更</p>' : ''}
       </div>
     </div>`;
   }).join('');
 }
 
-function saveGenba() {
+async function saveGenba() {
   const number = document.getElementById('f-number').value.trim();
-  const name = document.getElementById('f-name').value.trim();
+  const name   = document.getElementById('f-name').value.trim();
   const client = document.getElementById('f-client').value.trim();
   if (!number || !name) { alert('工事番号と工事件名は必須です'); return; }
-
+  loading(true);
   const id = document.getElementById('edit-id').value || Storage.uuid();
-  Storage.saveSite({ id, number, name, client });
+  await Storage.saveSite({ id, number, name, client });
   App.toast('現場を保存しました');
   cancelEdit();
-  render();
+  await render();
+  loading(false);
 }
 
-function editGenba(id) {
-  const s = Storage.getSite(id);
+async function editGenba(id) {
+  const s = await Storage.getSite(id);
   if (!s) return;
   document.getElementById('edit-id').value = s.id;
   document.getElementById('f-number').value = s.number;
-  document.getElementById('f-name').value = s.name;
+  document.getElementById('f-name').value   = s.name;
   document.getElementById('f-client').value = s.client || '';
   document.getElementById('form-title').textContent = '現場を編集';
   document.getElementById('cancel-btn').style.display = '';
-  document.getElementById('f-number').focus();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function cancelEdit() {
   document.getElementById('edit-id').value = '';
   document.getElementById('f-number').value = '';
-  document.getElementById('f-name').value = '';
+  document.getElementById('f-name').value   = '';
   document.getElementById('f-client').value = '';
   document.getElementById('form-title').textContent = '新しい現場を追加';
   document.getElementById('cancel-btn').style.display = 'none';
 }
 
-function deleteGenba(id) {
-  if (!confirm('この現場を削除しますか？\n（業者マスタ・日報データは残ります）')) return;
-  Storage.deleteSite(id);
-  const active = Storage.getActiveSite();
-  if (active && active.id === id) {
-    const sites = Storage.getSites();
-    localStorage.setItem('active_genba', sites.length > 0 ? sites[0].id : '');
+async function deleteGenba(id) {
+  if (!confirm('この現場を削除しますか？')) return;
+  loading(true);
+  await Storage.deleteSite(id);
+  const active = Storage.getActiveSiteId();
+  if (active === id) {
+    const sites = await Storage.getSites();
+    Storage.setActiveSite(sites.length > 0 ? sites[0].id : '');
   }
   App.toast('削除しました', 'warning');
-  render();
+  await render();
+  loading(false);
 }
 
 function setActive(id) {
@@ -169,48 +173,34 @@ function deactivate() {
   render();
 }
 
-function showQR(siteNumber, siteName) {
+async function showQR(siteNumber, siteName) {
   const base = location.origin + location.pathname.replace('genba.html', 'worker.html');
-
-  // 現場・業者データをURLに埋め込む（スマホ側にLocalStorageがなくても動くように）
-  const site = Storage.getSites().find(s => s.number === siteNumber) || null;
-  const vendors = Storage.getVendors(siteNumber);
-  // URL-safe base64（+→- /→_ =除去）でエンコード
+  const [sites, vendors] = await Promise.all([Storage.getSites(), Storage.getVendors(siteNumber)]);
+  const site = sites.find(s => s.number === siteNumber) || null;
   const json = JSON.stringify({ site, vendors });
   const payload = btoa(unescape(encodeURIComponent(json)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
   const url = base + '?site=' + encodeURIComponent(siteNumber) + '&d=' + payload;
-
   document.getElementById('qr-modal-title').textContent = '📱 ' + siteName;
   document.getElementById('qr-url').textContent = url;
   document.getElementById('qr-site-number').value = siteNumber;
   document.getElementById('qr-site-name').textContent = siteName;
   const container = document.getElementById('qr-container');
   container.innerHTML = '';
-  new QRCode(container, {
-    text: url,
-    width: 200,
-    height: 200,
-    colorDark: '#1e3a8a',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.M
-  });
+  new QRCode(container, { text: url, width: 200, height: 200, colorDark: '#1e3a8a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
   document.getElementById('qr-modal').style.display = '';
 }
 
-function closeQR() {
-  document.getElementById('qr-modal').style.display = 'none';
-}
+function closeQR() { document.getElementById('qr-modal').style.display = 'none'; }
 
 function printQR() {
   const url = document.getElementById('qr-url').textContent;
-  const siteName = document.getElementById('qr-site-name').textContent;
+  const siteName   = document.getElementById('qr-site-name').textContent;
   const siteNumber = document.getElementById('qr-site-number').value;
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>QRコード</title><style>
     body{font-family:sans-serif;text-align:center;padding:40px}
-    h2{margin-bottom:6px;color:#1e3a8a}
-    p{color:#555;font-size:14px;margin:4px 0}
+    h2{margin-bottom:6px;color:#1e3a8a} p{color:#555;font-size:14px;margin:4px 0}
     .site{font-size:16px;font-weight:bold;margin:10px 0;}
   </style></head><body>
     <h2>🏗️ 工事日報 職人入力</h2>
@@ -219,19 +209,14 @@ function printQR() {
     <div id="qr2" style="margin:16px auto;display:inline-block;"></div>
     <p style="font-size:11px;word-break:break-all;color:#aaa;margin-top:10px;">${url}</p>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
-    <script>
-      new QRCode(document.getElementById('qr2'), {text:'${url}',width:260,height:260,colorDark:'#1e3a8a',colorLight:'#ffffff'});
-      setTimeout(() => window.print(), 800);
-    <\/script>
+    <script>new QRCode(document.getElementById('qr2'),{text:'${url}',width:260,height:260,colorDark:'#1e3a8a',colorLight:'#ffffff'});setTimeout(()=>window.print(),800);<\/script>
   </body></html>`);
   w.document.close();
 }
 
-function escHtml(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-render();
+(async () => { await render(); loading(false); })();
 </script>
 </body>
 </html>

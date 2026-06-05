@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<div id="page-loading"><div class="spinner"></div>読み込み中...</div>
 
 <header class="site-header">
   <h1>👷 業者マスタ管理</h1>
@@ -67,36 +68,45 @@ if (!Auth.requireAuth()) { /* redirect */ }
 const params = new URLSearchParams(location.search);
 const siteNumber = params.get('site') || '';
 let currentSite = null;
+let allSites = [];
 
-function init() {
-  // Find site by number
-  const sites = Storage.getSites();
-  currentSite = sites.find(s => s.number === siteNumber) || null;
-
-  if (!currentSite) {
-    document.getElementById('site-title').textContent = '現場が見つかりません';
-    return;
-  }
-
-  document.title = '業者マスタ - ' + currentSite.name;
-  document.getElementById('site-title').textContent = '【' + currentSite.number + '】' + currentSite.name;
-  document.getElementById('site-info').textContent = currentSite.client ? '顧客: ' + currentSite.client : '';
-
-  // Populate copy-from dropdown
-  const sel = document.getElementById('copy-from');
-  sites.filter(s => s.id !== currentSite.id).forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.number;
-    opt.textContent = '【' + s.number + '】' + s.name;
-    sel.appendChild(opt);
-  });
-
-  render();
+function loading(show) {
+  document.getElementById('page-loading').style.display = show ? '' : 'none';
 }
 
-function render() {
+async function init() {
+  loading(true);
+  try {
+    allSites = await Storage.getSites();
+    currentSite = allSites.find(s => s.number === siteNumber) || null;
+
+    if (!currentSite) {
+      document.getElementById('site-title').textContent = '現場が見つかりません';
+      return;
+    }
+
+    document.title = '業者マスタ - ' + currentSite.name;
+    document.getElementById('site-title').textContent = '【' + currentSite.number + '】' + currentSite.name;
+    document.getElementById('site-info').textContent = currentSite.client ? '顧客: ' + currentSite.client : '';
+
+    // Populate copy-from dropdown
+    const sel = document.getElementById('copy-from');
+    allSites.filter(s => s.id !== currentSite.id).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.number;
+      opt.textContent = '【' + s.number + '】' + s.name;
+      sel.appendChild(opt);
+    });
+
+    await render();
+  } finally {
+    loading(false);
+  }
+}
+
+async function render() {
   if (!currentSite) return;
-  const vendors = Storage.getVendors(currentSite.number);
+  const vendors = await Storage.getVendors(currentSite.number);
   document.getElementById('vendor-count').textContent = vendors.length + '件';
   const list = document.getElementById('vendor-list');
   if (vendors.length === 0) {
@@ -117,21 +127,22 @@ function render() {
   `).join('');
 }
 
-function saveVendor() {
+async function saveVendor() {
   if (!currentSite) return;
   const name = document.getElementById('f-name').value.trim();
   if (!name) { alert('業者名を入力してください'); return; }
 
   const id = document.getElementById('edit-id').value || Storage.uuid();
-  Storage.saveVendor(currentSite.number, { id, name });
+  await Storage.saveVendor(currentSite.number, { id, name });
   App.toast('業者を保存しました');
   cancelEdit();
-  render();
+  await render();
 }
 
-function editVendor(id) {
+async function editVendor(id) {
   if (!currentSite) return;
-  const vendor = Storage.getVendors(currentSite.number).find(v => v.id === id);
+  const vendors = await Storage.getVendors(currentSite.number);
+  const vendor = vendors.find(v => v.id === id);
   if (!vendor) return;
   document.getElementById('edit-id').value = vendor.id;
   document.getElementById('f-name').value = vendor.name;
@@ -147,20 +158,22 @@ function cancelEdit() {
   document.getElementById('cancel-btn').style.display = 'none';
 }
 
-function deleteVendor(id) {
+async function deleteVendor(id) {
   if (!confirm('この業者を削除しますか？')) return;
-  Storage.deleteVendor(currentSite.number, id);
+  await Storage.deleteVendor(currentSite.number, id);
   App.toast('削除しました', 'warning');
-  render();
+  await render();
 }
 
-function copyFrom() {
+async function copyFrom() {
   const fromNumber = document.getElementById('copy-from').value;
   if (!fromNumber) { alert('コピー元を選択してください'); return; }
   if (!confirm('【' + fromNumber + '】の業者マスタをコピーしますか？\n（重複する業者名はスキップされます）')) return;
 
-  const srcVendors = Storage.getVendors(fromNumber);
-  const dstVendors = Storage.getVendors(currentSite.number);
+  const [srcVendors, dstVendors] = await Promise.all([
+    Storage.getVendors(fromNumber),
+    Storage.getVendors(currentSite.number)
+  ]);
   const existing = new Set(dstVendors.map(v => v.name));
   let added = 0;
   srcVendors.forEach(v => {
@@ -169,9 +182,9 @@ function copyFrom() {
       added++;
     }
   });
-  Storage.saveVendors(currentSite.number, dstVendors);
+  await Storage.saveVendors(currentSite.number, dstVendors);
   App.toast(added + '件の業者をコピーしました');
-  render();
+  await render();
 }
 
 function escHtml(s) {

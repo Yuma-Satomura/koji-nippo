@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<div id="page-loading"><div class="spinner"></div>読み込み中...</div>
 
 <header class="site-header">
   <h1>📋 日報一覧</h1>
@@ -148,6 +149,11 @@ let bulkMode = false;
 // ===== 作業予定ビュー =====
 let scheduleDate = null;
 let scheduleSiteNumber = null;
+let cachedSites = [];
+
+function loading(show) {
+  document.getElementById('page-loading').style.display = show ? '' : 'none';
+}
 
 function offsetDate(days) {
   const d = new Date();
@@ -161,25 +167,27 @@ function addDays(dateStr, days) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
-function initScheduleView() {
+async function initScheduleView() {
   scheduleDate = offsetDate(1); // デフォルト翌日
-  const sites = Storage.getSites();
-  scheduleSiteNumber = sites.length > 0 ? (Storage.getActiveSite() || sites[0]).number : null;
-  renderSchedule();
+  const sites = await Storage.getSites();
+  cachedSites = sites;
+  const activeSite = await Storage.getActiveSite();
+  scheduleSiteNumber = sites.length > 0 ? (activeSite || sites[0]).number : null;
+  await renderSchedule();
 }
 
-function shiftScheduleDate(delta) {
+async function shiftScheduleDate(delta) {
   scheduleDate = addDays(scheduleDate, delta);
-  renderSchedule();
+  await renderSchedule();
 }
 
-function jumpToToday() {
+async function jumpToToday() {
   scheduleDate = App.today();
-  renderSchedule();
+  await renderSchedule();
 }
 
-function renderScheduleTabs() {
-  const sites = Storage.getSites();
+async function renderScheduleTabs() {
+  const sites = cachedSites;
   const tabs = document.getElementById('schedule-tabs');
   if (sites.length <= 1) { tabs.innerHTML = ''; return; }
   tabs.innerHTML = sites.map(s => `
@@ -192,12 +200,12 @@ function renderScheduleTabs() {
     </button>`).join('');
 }
 
-function scheduleSelectSite(number) {
+async function scheduleSelectSite(number) {
   scheduleSiteNumber = number;
-  renderSchedule();
+  await renderSchedule();
 }
 
-function renderSchedule() {
+async function renderSchedule() {
   if (!scheduleDate) return;
 
   // 日付ラベル
@@ -209,18 +217,20 @@ function renderSchedule() {
   document.getElementById('schedule-date-label').textContent = App.formatDate(scheduleDate);
   document.getElementById('schedule-date-sub').textContent = sub;
 
-  renderScheduleTabs();
+  await renderScheduleTabs();
 
-  const sites = Storage.getSites();
+  const sites = cachedSites;
   if (sites.length === 0) {
     document.getElementById('schedule-content').innerHTML = '<p class="text-muted">現場が登録されていません</p>';
     return;
   }
   if (!scheduleSiteNumber) scheduleSiteNumber = sites[0].number;
 
-  const vendors = Storage.getVendors(scheduleSiteNumber);
-  const report  = Storage.getReport(scheduleSiteNumber, scheduleDate);
-  const rows    = report ? report.rows : [];
+  const [vendors, report] = await Promise.all([
+    Storage.getVendors(scheduleSiteNumber),
+    Storage.getReport(scheduleSiteNumber, scheduleDate)
+  ]);
+  const rows = report ? report.rows : [];
 
   if (vendors.length === 0 && rows.length === 0) {
     document.getElementById('schedule-content').innerHTML =
@@ -294,12 +304,19 @@ function goEditSchedule() {
 }
 
 // ===== 既存の init に統合 =====
-function init() {
-  const site = Storage.getActiveSite();
-  document.getElementById('header-site').textContent = site ? '【' + site.number + '】' + site.name : '現場未設定';
-  initScheduleView();
-  renderTodayStatus();
-  loadReports();
+async function init() {
+  loading(true);
+  try {
+    const activeSite = await Storage.getActiveSite();
+    document.getElementById('header-site').textContent = activeSite ? '【' + activeSite.number + '】' + activeSite.name : '現場未設定';
+    await Promise.all([
+      initScheduleView(),
+      renderTodayStatus(),
+      loadReports()
+    ]);
+  } finally {
+    loading(false);
+  }
 }
 
 function toggleTodayCard() {
@@ -310,9 +327,10 @@ function toggleTodayCard() {
   icon.textContent = open ? '▼' : '▲';
 }
 
-function renderTodayStatus() {
+async function renderTodayStatus() {
   // 本日入力状況（折りたたみ内）
-  const sites = Storage.getSites();
+  const sites = await Storage.getSites();
+  cachedSites = sites;
   const today = App.today();
   document.getElementById('today-label').textContent = App.formatDate(today);
 
@@ -321,12 +339,18 @@ function renderTodayStatus() {
     return;
   }
 
-  // 全現場の本日入力状況をまとめて表示
+  // 全現場の本日入力状況をまとめて取得
+  const siteDataList = await Promise.all(sites.map(async site => {
+    const [vendors, report] = await Promise.all([
+      Storage.getVendors(site.number),
+      Storage.getReport(site.number, today)
+    ]);
+    return { site, vendors, report };
+  }));
+
   let html = '';
-  sites.forEach(site => {
-    const vendors = Storage.getVendors(site.number);
+  siteDataList.forEach(({ site, vendors, report }) => {
     if (vendors.length === 0) return;
-    const report = Storage.getReport(site.number, today);
     const submittedIds = new Set((report ? report.rows : []).filter(r => r.submittedByWorker).map(r => r.vendorId));
     const doneCount = vendors.filter(v => submittedIds.has(v.id)).length;
 
@@ -348,8 +372,8 @@ function renderTodayStatus() {
   document.getElementById('bulk-btn').style.display = '';
 }
 
-function loadReports() {
-  allReports = Storage.getAllReports();
+async function loadReports() {
+  allReports = await Storage.getAllReports();
   filtered = [...allReports];
   renderList();
 }
@@ -447,7 +471,7 @@ async function bulkPrint() {
 }
 
 async function printOne(siteNumber, date) {
-  const report = Storage.getReport(siteNumber, date);
+  const report = await Storage.getReport(siteNumber, date);
   if (!report) { alert('日報が見つかりません'); return; }
   App.toast('PDF生成中...');
   try {
@@ -457,22 +481,21 @@ async function printOne(siteNumber, date) {
   }
 }
 
-function deleteReport(siteNumber, date) {
+async function deleteReport(siteNumber, date) {
   if (!confirm('この日報を削除しますか？')) return;
-  Storage.deleteReport(siteNumber, date);
+  await Storage.deleteReport(siteNumber, date);
   App.toast('削除しました', 'warning');
-  loadReports();
-  renderTodayStatus();
+  await Promise.all([loadReports(), renderTodayStatus()]);
 }
 
-function openNewModal() {
-  const sites = Storage.getSites();
+async function openNewModal() {
+  const sites = await Storage.getSites();
   if (sites.length === 0) { alert('現場を先に登録してください'); return; }
 
   // Populate site select
   const sel = document.getElementById('modal-site');
   sel.innerHTML = '';
-  const active = Storage.getActiveSite();
+  const active = await Storage.getActiveSite();
   sites.forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.number;
@@ -483,7 +506,7 @@ function openNewModal() {
 
   setModalDate(1); // デフォルト翌日
   document.getElementById('new-modal').style.display = '';
-  checkModalExists();
+  await checkModalExists();
 }
 
 function setModalDate(offsetDays) {
@@ -496,12 +519,12 @@ function setModalDate(offsetDays) {
   checkModalExists();
 }
 
-function checkModalExists() {
+async function checkModalExists() {
   const siteNumber = document.getElementById('modal-site').value;
   const date = document.getElementById('modal-date').value;
   if (!siteNumber || !date) return;
-  const exists = !!Storage.getReport(siteNumber, date);
-  document.getElementById('modal-exists-warn').style.display = exists ? '' : 'none';
+  const report = await Storage.getReport(siteNumber, date);
+  document.getElementById('modal-exists-warn').style.display = report ? '' : 'none';
 }
 
 function closeNewModal() {
@@ -515,8 +538,9 @@ function goNewReport() {
   location.href = 'edit.html?site=' + encodeURIComponent(siteNumber) + '&date=' + date;
 }
 
-function goToday() {
-  const site = Storage.getActiveSite() || Storage.getSites()[0];
+async function goToday() {
+  const sites = await Storage.getSites();
+  const site = (await Storage.getActiveSite()) || sites[0];
   if (!site) { alert('現場を先に登録してください'); return; }
   location.href = 'edit.html?site=' + encodeURIComponent(site.number) + '&date=' + App.today();
 }
@@ -526,8 +550,8 @@ function escHtml(s) {
 }
 
 // Export/Import
-function exportData() {
-  const json = Storage.exportAll();
+async function exportData() {
+  const json = await Storage.exportAll();
   const a = document.createElement('a');
   a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
   a.download = 'koji-nippo-backup-' + App.today() + '.json';
@@ -542,12 +566,12 @@ function importData() {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       if (!confirm('現在のデータを上書きして復元しますか？')) return;
       try {
-        Storage.importAll(ev.target.result);
+        await Storage.importAll(ev.target.result);
         App.toast('復元しました');
-        init();
+        await init();
       } catch(err) {
         alert('インポートに失敗しました: ' + err.message);
       }
