@@ -165,12 +165,8 @@ let vendorList = [];
 let modalSigPad = null;
 let currentSigRowId = null;
 
-function loading(show) {
-  document.getElementById('page-loading').style.display = show ? '' : 'none';
-}
-
 async function init() {
-  loading(true);
+  App.loading(true);
   try {
     const [sites, activeSite] = await Promise.all([
       Storage.getSites(),
@@ -246,7 +242,7 @@ async function init() {
     renderRows();
     initModalSig();
   } finally {
-    loading(false);
+    App.loading(false);
   }
 }
 
@@ -272,22 +268,14 @@ function renderRows() {
   updateTotals();
 }
 
-function buildRowEl(row, i) {
-  const div = document.createElement('div');
-  div.className = 'worker-row-card' + (row.submittedByWorker ? ' worker-submitted' : '');
-  div.id = 'row-' + row.id;
-  div.innerHTML = `
-    <div class="worker-row-header">
-      <span class="row-number">#${i+1} ${escHtml(row.vendorName || '（業者未設定）')}</span>
-      ${row.submittedByWorker ? '<span class="badge badge-success">✓ 職人入力済</span>' : ''}
-      <button class="delete-row-btn" onclick="deleteRow('${row.id}')" title="この行を削除">✕</button>
-    </div>
-
+// 数値入力グリッド部分（予定人数・本日人数・前回累計・累計・車両台数）
+function buildRowNumbers(row) {
+  return `
     <div class="form-group" style="margin-bottom:12px;">
       <label>業者名</label>
       <select onchange="updateRowVendor('${row.id}', this.value)" style="font-size:14px;">
         <option value="">-- 業者を選択 --</option>
-        ${vendorList.map(v => `<option value="${v.id}" ${v.id===row.vendorId?'selected':''}>${escHtml(v.name)}</option>`).join('')}
+        ${vendorList.map(v => `<option value="${v.id}" ${v.id===row.vendorId?'selected':''}>${App.escHtml(v.name)}</option>`).join('')}
       </select>
     </div>
 
@@ -312,16 +300,20 @@ function buildRowEl(row, i) {
         <label>車両台数</label>
         <input type="number" class="num-input" value="${row.vehicles}" min="0" oninput="updateRow('${row.id}','vehicles',this.value);updateTotals()">
       </div>
-    </div>
+    </div>`;
+}
 
+// 作業内容・安全/火気部分
+function buildRowContent(row) {
+  return `
     <div class="input-row" style="gap:8px;">
       <div class="form-group" style="margin-bottom:0;">
         <label>作業指示内容</label>
-        <textarea oninput="updateRow('${row.id}','workInstruction',this.value)" style="height:60px;">${escHtml(row.workInstruction)}</textarea>
+        <textarea oninput="updateRow('${row.id}','workInstruction',this.value)" style="height:60px;">${App.escHtml(row.workInstruction)}</textarea>
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label>安全注意事項</label>
-        <textarea oninput="updateRow('${row.id}','safetyNotes',this.value)" style="height:60px;">${escHtml(row.safetyNotes)}</textarea>
+        <textarea oninput="updateRow('${row.id}','safetyNotes',this.value)" style="height:60px;">${App.escHtml(row.safetyNotes)}</textarea>
       </div>
     </div>
 
@@ -329,7 +321,12 @@ function buildRowEl(row, i) {
       <div class="checkbox-row" style="margin:0;">
         <input type="checkbox" class="fire-check" ${row.fireCheck ? 'checked' : ''} onchange="updateRow('${row.id}','fireCheck',this.checked)" id="fire-${row.id}">
         <label for="fire-${row.id}" style="color:#dc2626;font-weight:600;">🔥 火気使用あり</label>
-      </div>
+      </div>`;
+}
+
+// 署名・次回作業日部分
+function buildRowSignature(row) {
+  return `
       <div style="flex:1;">
         <label style="font-size:13px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">署名</label>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -346,7 +343,23 @@ function buildRowEl(row, i) {
     <div style="margin-top:10px;padding:8px 12px;background:#eff6ff;border-radius:8px;font-size:13px;color:#1e40af;">
       📅 次回作業日：<strong>${row.nextWorkDate === '未定' ? '未定' : App.formatDate(row.nextWorkDate)}</strong>
       <span style="color:#64748b;font-size:11px;margin-left:8px;">（職人入力）</span>
-    </div>` : ''}
+    </div>` : ''}`;
+}
+
+// メイン関数（上記3つを組み合わせ）
+function buildRowEl(row, i) {
+  const div = document.createElement('div');
+  div.className = 'worker-row-card' + (row.submittedByWorker ? ' worker-submitted' : '');
+  div.id = 'row-' + row.id;
+  div.innerHTML = `
+    <div class="worker-row-header">
+      <span class="row-number">#${i+1} ${App.escHtml(row.vendorName || '（業者未設定）')}</span>
+      ${row.submittedByWorker ? '<span class="badge badge-success">✓ 職人入力済</span>' : ''}
+      <button class="delete-row-btn" onclick="deleteRow('${row.id}')" title="この行を削除">✕</button>
+    </div>
+    ${buildRowNumbers(row)}
+    ${buildRowContent(row)}
+    ${buildRowSignature(row)}
   `;
   return div;
 }
@@ -498,15 +511,29 @@ let saveTimer = null;
 async function autoSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
-    collectReport();
-    await Storage.saveReport(report);
+    App.loading(true);
+    try {
+      collectReport();
+      await Storage.saveReport(report);
+    } catch(e) {
+      App.handleError(e, '自動保存に失敗しました');
+    } finally {
+      App.loading(false);
+    }
   }, 800);
 }
 
 async function saveReport() {
-  collectReport();
-  await Storage.saveReport(report);
-  App.toast('保存しました');
+  App.loading(true);
+  try {
+    collectReport();
+    await Storage.saveReport(report);
+    App.toast('保存しました');
+  } catch(e) {
+    App.handleError(e, '保存に失敗しました');
+  } finally {
+    App.loading(false);
+  }
 }
 
 async function exportPDF() {
@@ -518,10 +545,6 @@ async function exportPDF() {
   } catch(e) {
     alert('PDF生成に失敗しました: ' + e.message);
   }
-}
-
-function escHtml(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // Auto-save on any input change

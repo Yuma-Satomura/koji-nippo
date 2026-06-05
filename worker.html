@@ -388,13 +388,10 @@ let sigPad = null;
 let currentSite = null;
 let today = App.today();
 
-function loading(show) {
-  document.getElementById('page-loading').style.display = show ? '' : 'none';
-}
 
 // ---- 初期化 ----
 async function init() {
-  loading(true);
+  App.loading(true);
   try {
     const params = new URLSearchParams(location.search);
     const siteParam = params.get('site');
@@ -430,7 +427,7 @@ async function init() {
     initSig();
     initNextDateLabels();
   } finally {
-    loading(false);
+    App.loading(false);
   }
 }
 
@@ -551,15 +548,10 @@ function toggleFire(mode) {
 
 // ---- 次回日付選択 ----
 function initNextDateLabels() {
-  document.getElementById('ndt-1-label').textContent = fmtShort(offsetDate(1));
-  document.getElementById('ndt-2-label').textContent = fmtShort(offsetDate(2));
+  document.getElementById('ndt-1-label').textContent = fmtShort(App.offsetDate(1));
+  document.getElementById('ndt-2-label').textContent = fmtShort(App.offsetDate(2));
 }
 
-function offsetDate(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
 
 function fmtShort(dateStr) {
   const [,m,d] = dateStr.split('-');
@@ -574,10 +566,10 @@ function selectNextDate(type) {
   resetNextDateBtns();
   document.getElementById('next-date-cal').value = '';
   if (type === '1') {
-    nextWorkDate = offsetDate(1);
+    nextWorkDate = App.offsetDate(1);
     document.getElementById('ndt-1').classList.add('selected');
   } else if (type === '2') {
-    nextWorkDate = offsetDate(2);
+    nextWorkDate = App.offsetDate(2);
     document.getElementById('ndt-2').classList.add('selected');
   } else {
     nextWorkDate = '未定';

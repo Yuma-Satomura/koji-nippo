@@ -86,44 +86,47 @@
 <script>
 if (!Auth.requireAuth()) { /* redirect */ }
 
-function loading(show) {
-  document.getElementById('page-loading').style.display = show ? '' : 'none';
-}
-
 async function render() {
-  const [sites, active] = await Promise.all([Storage.getSites(), Storage.getActiveSite()]);
-  const list = document.getElementById('genba-list');
-  if (sites.length === 0) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>現場がありません。上のフォームから追加してください。</p></div>';
-    return;
-  }
-  list.innerHTML = sites.map(s => {
-    const isActive = active && s.id === active.id;
-    return `
-    <div class="genba-card ${isActive ? 'active' : 'inactive'}"
-         onclick="${isActive ? '' : "setActive('" + s.id + "')"}"
-         style="border-color:${isActive ? '#1e40af' : '#cbd5e1'};background:${isActive ? '#eff6ff' : '#f8fafc'};">
-      <div class="genba-info">
-        <h3 style="color:${isActive ? '#1e293b' : '#64748b'};">${escHtml(s.name)}</h3>
-        <p style="color:${isActive ? '#64748b' : '#94a3b8'};">工事番号: ${escHtml(s.number)}${s.client ? '　顧客: ' + escHtml(s.client) : ''}</p>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
-        ${isActive
-          ? `<button onclick="event.stopPropagation();deactivate()"
-               style="cursor:pointer;border:none;padding:4px 12px;border-radius:20px;background:#1e40af;color:white;font-size:12px;font-weight:700;"
-               title="クリックで解除">▶ 稼働中</button>`
-          : `<span style="padding:4px 12px;border-radius:20px;background:#e2e8f0;color:#94a3b8;font-size:12px;font-weight:700;">■ 非アクティブ</span>`
-        }
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();showQR('${s.number}','${escHtml(s.name)}')">📱 QR</button>
-          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editGenba('${s.id}')">編集</button>
-          <a href="master.html?site=${encodeURIComponent(s.number)}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">業者マスタ</a>
-          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteGenba('${s.id}')">削除</button>
+  App.loading(true);
+  try {
+    const [sites, active] = await Promise.all([Storage.getSites(), Storage.getActiveSite()]);
+    const list = document.getElementById('genba-list');
+    if (sites.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>現場がありません。上のフォームから追加してください。</p></div>';
+      return;
+    }
+    list.innerHTML = sites.map(s => {
+      const isActive = active && s.id === active.id;
+      return `
+      <div class="genba-card ${isActive ? 'active' : 'inactive'}"
+           onclick="${isActive ? '' : "setActive('" + s.id + "')"}"
+           style="border-color:${isActive ? '#1e40af' : '#cbd5e1'};background:${isActive ? '#eff6ff' : '#f8fafc'};">
+        <div class="genba-info">
+          <h3 style="color:${isActive ? '#1e293b' : '#64748b'};">${App.escHtml(s.name)}</h3>
+          <p style="color:${isActive ? '#64748b' : '#94a3b8'};">工事番号: ${App.escHtml(s.number)}${s.client ? '　顧客: ' + App.escHtml(s.client) : ''}</p>
         </div>
-        ${!isActive ? '<p style="font-size:11px;color:#94a3b8;margin:0;text-align:right;">クリックして稼働中に変更</p>' : ''}
-      </div>
-    </div>`;
-  }).join('');
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          ${isActive
+            ? `<button onclick="event.stopPropagation();deactivate()"
+                 style="cursor:pointer;border:none;padding:4px 12px;border-radius:20px;background:#1e40af;color:white;font-size:12px;font-weight:700;"
+                 title="クリックで解除">▶ 稼働中</button>`
+            : `<span style="padding:4px 12px;border-radius:20px;background:#e2e8f0;color:#94a3b8;font-size:12px;font-weight:700;">■ 非アクティブ</span>`
+          }
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();showQR('${s.number}','${App.escHtml(s.name)}')">📱 QR</button>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editGenba('${s.id}')">編集</button>
+            <a href="master.html?site=${encodeURIComponent(s.number)}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">業者マスタ</a>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteGenba('${s.id}')">削除</button>
+          </div>
+          ${!isActive ? '<p style="font-size:11px;color:#94a3b8;margin:0;text-align:right;">クリックして稼働中に変更</p>' : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    App.handleError(e, '現場一覧の読み込みに失敗しました');
+  } finally {
+    App.loading(false);
+  }
 }
 
 async function saveGenba() {
@@ -134,13 +137,18 @@ async function saveGenba() {
   const representative = document.getElementById('f-representative').value.trim();
   const staff          = document.getElementById('f-staff').value.trim();
   if (!number || !name) { alert('工事番号と工事件名は必須です'); return; }
-  loading(true);
-  const id = document.getElementById('edit-id').value || Storage.uuid();
-  await Storage.saveSite({ id, number, name, client, company, representative, staff });
-  App.toast('現場を保存しました');
-  cancelEdit();
-  await render();
-  loading(false);
+  App.loading(true);
+  try {
+    const id = document.getElementById('edit-id').value || Storage.uuid();
+    await Storage.saveSite({ id, number, name, client, company, representative, staff });
+    App.toast('現場を保存しました');
+    cancelEdit();
+    await render();
+  } catch(e) {
+    App.handleError(e, '保存に失敗しました');
+  } finally {
+    App.loading(false);
+  }
 }
 
 async function editGenba(id) {
@@ -167,16 +175,21 @@ function cancelEdit() {
 
 async function deleteGenba(id) {
   if (!confirm('この現場を削除しますか？')) return;
-  loading(true);
-  await Storage.deleteSite(id);
-  const active = Storage.getActiveSiteId();
-  if (active === id) {
-    const sites = await Storage.getSites();
-    Storage.setActiveSite(sites.length > 0 ? sites[0].id : '');
+  App.loading(true);
+  try {
+    await Storage.deleteSite(id);
+    const active = Storage.getActiveSiteId();
+    if (active === id) {
+      const sites = await Storage.getSites();
+      Storage.setActiveSite(sites.length > 0 ? sites[0].id : '');
+    }
+    App.toast('削除しました', 'warning');
+    await render();
+  } catch(e) {
+    App.handleError(e, '削除に失敗しました');
+  } finally {
+    App.loading(false);
   }
-  App.toast('削除しました', 'warning');
-  await render();
-  loading(false);
 }
 
 function setActive(id) {
@@ -232,9 +245,7 @@ function printQR() {
   w.document.close();
 }
 
-function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-(async () => { await render(); loading(false); })();
+(async () => { await render(); App.loading(false); })();
 </script>
 </body>
 </html>

@@ -1,7 +1,20 @@
 const App = {
-  // Date utilities
+  // ---- 日付 ----
   today() {
+    return this.offsetDate(0);
+  },
+
+  offsetDate(days) {
     const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  },
+
+  addDays(dateStr, days) {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + days);
     return d.getFullYear() + '-' +
       String(d.getMonth() + 1).padStart(2, '0') + '-' +
       String(d.getDate()).padStart(2, '0');
@@ -10,8 +23,7 @@ const App = {
   formatDate(dateStr) {
     if (!dateStr) return '';
     const [y, m, d] = dateStr.split('-');
-    const wareki = this.toWareki(parseInt(y));
-    return wareki + String(parseInt(m)) + '月' + String(parseInt(d)) + '日';
+    return this.toWareki(parseInt(y)) + String(parseInt(m)) + '月' + String(parseInt(d)) + '日';
   },
 
   toWareki(year) {
@@ -27,25 +39,26 @@ const App = {
     return y + '/' + m + '/' + d;
   },
 
-  // Show toast notification
+  // ---- UI ----
+  escHtml(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  },
+
+  loading(show) {
+    const el = document.getElementById('page-loading');
+    if (el) el.style.display = show ? '' : 'none';
+  },
+
   toast(msg, type = 'success') {
     const el = document.createElement('div');
     el.className = 'toast toast-' + type;
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(() => el.classList.add('show'), 10);
-    setTimeout(() => {
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 300);
-    }, 2500);
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2500);
   },
 
-  // Confirm dialog
-  confirm(msg) {
-    return window.confirm(msg);
-  },
-
-  // Empty report template
+  // ---- データモデル ----
   newReport(site, dateStr) {
     return {
       id: Storage.uuid(),
@@ -65,7 +78,6 @@ const App = {
     };
   },
 
-  // New report row
   newRow(vendor) {
     return {
       id: Storage.uuid(),
@@ -78,9 +90,19 @@ const App = {
       workInstruction: '',
       fireCheck: false,
       safetyNotes: '',
-      checker: '',
       signature: null,
       submittedByWorker: false
     };
+  },
+
+  // ---- エラーハンドリング ----
+  handleError(err, msg = 'エラーが発生しました') {
+    console.error(err);
+    this.toast(msg + '（' + (err.message || err) + '）', 'danger');
   }
 };
+
+// 未処理のPromiseエラーをキャッチ
+window.addEventListener('unhandledrejection', e => {
+  App.handleError(e.reason, '通信エラー');
+});

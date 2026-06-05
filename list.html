@@ -151,33 +151,24 @@ let scheduleDate = null;
 let scheduleSiteNumber = null;
 let cachedSites = [];
 
-function loading(show) {
-  document.getElementById('page-loading').style.display = show ? '' : 'none';
-}
-
-function offsetDate(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-
-function addDays(dateStr, days) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + days);
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-
 async function initScheduleView() {
-  scheduleDate = offsetDate(1); // デフォルト翌日
-  const sites = await Storage.getSites();
-  cachedSites = sites;
-  const activeSite = await Storage.getActiveSite();
-  scheduleSiteNumber = sites.length > 0 ? (activeSite || sites[0]).number : null;
-  await renderSchedule();
+  App.loading(true);
+  try {
+    scheduleDate = App.offsetDate(1); // デフォルト翌日
+    const sites = await Storage.getSites();
+    cachedSites = sites;
+    const activeSite = await Storage.getActiveSite();
+    scheduleSiteNumber = sites.length > 0 ? (activeSite || sites[0]).number : null;
+    await renderSchedule();
+  } catch(e) {
+    App.handleError(e, '作業予定の読み込みに失敗しました');
+  } finally {
+    App.loading(false);
+  }
 }
 
 async function shiftScheduleDate(delta) {
-  scheduleDate = addDays(scheduleDate, delta);
+  scheduleDate = App.addDays(scheduleDate, delta);
   await renderSchedule();
 }
 
@@ -191,12 +182,12 @@ async function renderScheduleTabs() {
   const tabs = document.getElementById('schedule-tabs');
   if (sites.length <= 1) { tabs.innerHTML = ''; return; }
   tabs.innerHTML = sites.map(s => `
-    <button onclick="scheduleSelectSite('${escHtml(s.number)}')"
+    <button onclick="scheduleSelectSite('${App.escHtml(s.number)}')"
       style="padding:5px 12px;border-radius:20px;border:2px solid ${s.number===scheduleSiteNumber?'#1e40af':'#e2e8f0'};
       background:${s.number===scheduleSiteNumber?'#1e40af':'white'};
       color:${s.number===scheduleSiteNumber?'white':'#1e293b'};
       font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
-      ${escHtml(s.number)}
+      ${App.escHtml(s.number)}
     </button>`).join('');
 }
 
@@ -207,95 +198,101 @@ async function scheduleSelectSite(number) {
 
 async function renderSchedule() {
   if (!scheduleDate) return;
+  App.loading(true);
+  try {
+    // 日付ラベル
+    const today = App.today();
+    const tomorrow = App.offsetDate(1);
+    let sub = '';
+    if (scheduleDate === today) sub = '今日';
+    else if (scheduleDate === tomorrow) sub = '翌日';
+    document.getElementById('schedule-date-label').textContent = App.formatDate(scheduleDate);
+    document.getElementById('schedule-date-sub').textContent = sub;
 
-  // 日付ラベル
-  const today = App.today();
-  const tomorrow = offsetDate(1);
-  let sub = '';
-  if (scheduleDate === today) sub = '今日';
-  else if (scheduleDate === tomorrow) sub = '翌日';
-  document.getElementById('schedule-date-label').textContent = App.formatDate(scheduleDate);
-  document.getElementById('schedule-date-sub').textContent = sub;
+    await renderScheduleTabs();
 
-  await renderScheduleTabs();
+    const sites = cachedSites;
+    if (sites.length === 0) {
+      document.getElementById('schedule-content').innerHTML = '<p class="text-muted">現場が登録されていません</p>';
+      return;
+    }
+    if (!scheduleSiteNumber) scheduleSiteNumber = sites[0].number;
 
-  const sites = cachedSites;
-  if (sites.length === 0) {
-    document.getElementById('schedule-content').innerHTML = '<p class="text-muted">現場が登録されていません</p>';
-    return;
-  }
-  if (!scheduleSiteNumber) scheduleSiteNumber = sites[0].number;
+    const [vendors, report] = await Promise.all([
+      Storage.getVendors(scheduleSiteNumber),
+      Storage.getReport(scheduleSiteNumber, scheduleDate)
+    ]);
+    const rows = report ? report.rows : [];
 
-  const [vendors, report] = await Promise.all([
-    Storage.getVendors(scheduleSiteNumber),
-    Storage.getReport(scheduleSiteNumber, scheduleDate)
-  ]);
-  const rows = report ? report.rows : [];
+    if (vendors.length === 0 && rows.length === 0) {
+      document.getElementById('schedule-content').innerHTML =
+        '<div class="empty-state" style="padding:24px 0;"><div class="empty-icon" style="font-size:32px;">📋</div><p>業者マスタが登録されていません</p></div>';
+      return;
+    }
 
-  if (vendors.length === 0 && rows.length === 0) {
-    document.getElementById('schedule-content').innerHTML =
-      '<div class="empty-state" style="padding:24px 0;"><div class="empty-icon" style="font-size:32px;">📋</div><p>業者マスタが登録されていません</p></div>';
-    return;
-  }
+    // 業者マスタを基準に、登録済み行をマージ
+    const allVendors = vendors.length > 0 ? vendors : rows.map(r => ({ id: r.vendorId, name: r.vendorName }));
+    // 業者マスタにない行（職人が直接入力したもの）も含める
+    const extraRows = rows.filter(r => !vendors.find(v => v.id === r.vendorId));
+    const displayVendors = [...allVendors, ...extraRows.map(r => ({ id: r.vendorId, name: r.vendorName }))];
 
-  // 業者マスタを基準に、登録済み行をマージ
-  const allVendors = vendors.length > 0 ? vendors : rows.map(r => ({ id: r.vendorId, name: r.vendorName }));
-  // 業者マスタにない行（職人が直接入力したもの）も含める
-  const extraRows = rows.filter(r => !vendors.find(v => v.id === r.vendorId));
-  const displayVendors = [...allVendors, ...extraRows.map(r => ({ id: r.vendorId, name: r.vendorName }))];
+    let html = '';
+    let totalPlanned = 0;
+    let registeredCount = 0;
 
-  let html = '';
-  let totalPlanned = 0;
-  let registeredCount = 0;
+    displayVendors.forEach(v => {
+      const row = rows.find(r => r.vendorId === v.id);
+      const planned = row && (row.plannedWorkers !== '' && row.plannedWorkers !== undefined) ? parseInt(row.plannedWorkers) : null;
+      const hasData = row && (row.workInstruction || planned !== null);
+      if (planned) totalPlanned += planned;
+      if (hasData) registeredCount++;
 
-  displayVendors.forEach(v => {
-    const row = rows.find(r => r.vendorId === v.id);
-    const planned = row && (row.plannedWorkers !== '' && row.plannedWorkers !== undefined) ? parseInt(row.plannedWorkers) : null;
-    const hasData = row && (row.workInstruction || planned !== null);
-    if (planned) totalPlanned += planned;
-    if (hasData) registeredCount++;
-
-    html += `
-    <div style="border:1px solid ${hasData?'#bfdbfe':'#e2e8f0'};border-radius:10px;padding:14px;margin-bottom:10px;background:${hasData?'#f0f7ff':'#fafafa'};">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${hasData?'10px':'0'};">
-        <div style="font-size:15px;font-weight:700;">${escHtml(v.name)}</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
-          ${planned !== null
-            ? `<span style="font-size:18px;font-weight:700;color:#1e40af;">${planned}<span style="font-size:13px;font-weight:400;">人</span></span>`
-            : `<span style="font-size:13px;color:#94a3b8;">人数未登録</span>`}
-          <span class="badge ${hasData ? 'badge-info' : 'badge-warning'}">${hasData ? '登録済' : '未登録'}</span>
+      html += `
+      <div style="border:1px solid ${hasData?'#bfdbfe':'#e2e8f0'};border-radius:10px;padding:14px;margin-bottom:10px;background:${hasData?'#f0f7ff':'#fafafa'};">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${hasData?'10px':'0'};">
+          <div style="font-size:15px;font-weight:700;">${App.escHtml(v.name)}</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+            ${planned !== null
+              ? `<span style="font-size:18px;font-weight:700;color:#1e40af;">${planned}<span style="font-size:13px;font-weight:400;">人</span></span>`
+              : `<span style="font-size:13px;color:#94a3b8;">人数未登録</span>`}
+            <span class="badge ${hasData ? 'badge-info' : 'badge-warning'}">${hasData ? '登録済' : '未登録'}</span>
+          </div>
         </div>
-      </div>
-      ${hasData ? `
-        ${row.workInstruction ? `
-          <div style="margin-bottom:6px;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;">作業内容</div>
-            <div style="font-size:14px;white-space:pre-wrap;background:white;border-radius:6px;padding:8px 10px;border:1px solid #e2e8f0;">${escHtml(row.workInstruction)}</div>
-          </div>` : ''}
-        ${row.safetyNotes ? `
-          <div style="margin-bottom:6px;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;">安全注意事項</div>
-            <div style="font-size:13px;white-space:pre-wrap;background:white;border-radius:6px;padding:6px 10px;border:1px solid #e2e8f0;color:#475569;">${escHtml(row.safetyNotes)}</div>
-          </div>` : ''}
-        ${row.fireCheck ? `<span style="font-size:13px;color:#dc2626;font-weight:700;">🔥 火気使用あり</span>` : ''}
-      ` : '<div style="font-size:13px;color:#94a3b8;">作業予定が登録されていません</div>'}
-    </div>`;
-  });
+        ${hasData ? `
+          ${row.workInstruction ? `
+            <div style="margin-bottom:6px;">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;">作業内容</div>
+              <div style="font-size:14px;white-space:pre-wrap;background:white;border-radius:6px;padding:8px 10px;border:1px solid #e2e8f0;">${App.escHtml(row.workInstruction)}</div>
+            </div>` : ''}
+          ${row.safetyNotes ? `
+            <div style="margin-bottom:6px;">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;">安全注意事項</div>
+              <div style="font-size:13px;white-space:pre-wrap;background:white;border-radius:6px;padding:6px 10px;border:1px solid #e2e8f0;color:#475569;">${App.escHtml(row.safetyNotes)}</div>
+            </div>` : ''}
+          ${row.fireCheck ? `<span style="font-size:13px;color:#dc2626;font-weight:700;">🔥 火気使用あり</span>` : ''}
+        ` : '<div style="font-size:13px;color:#94a3b8;">作業予定が登録されていません</div>'}
+      </div>`;
+    });
 
-  // サマリーヘッダー
-  const summary = `
-    <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
-      <div style="background:#eff6ff;border-radius:8px;padding:8px 16px;text-align:center;flex:1;min-width:90px;">
-        <div style="font-size:11px;color:#64748b;">登録業者</div>
-        <div style="font-size:20px;font-weight:700;color:#1e40af;">${registeredCount}<span style="font-size:13px;"> / ${displayVendors.length}</span></div>
-      </div>
-      <div style="background:#f0fdf4;border-radius:8px;padding:8px 16px;text-align:center;flex:1;min-width:90px;">
-        <div style="font-size:11px;color:#64748b;">合計予定人数</div>
-        <div style="font-size:20px;font-weight:700;color:#16a34a;">${totalPlanned}<span style="font-size:13px;">人</span></div>
-      </div>
-    </div>`;
+    // サマリーヘッダー
+    const summary = `
+      <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+        <div style="background:#eff6ff;border-radius:8px;padding:8px 16px;text-align:center;flex:1;min-width:90px;">
+          <div style="font-size:11px;color:#64748b;">登録業者</div>
+          <div style="font-size:20px;font-weight:700;color:#1e40af;">${registeredCount}<span style="font-size:13px;"> / ${displayVendors.length}</span></div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:8px;padding:8px 16px;text-align:center;flex:1;min-width:90px;">
+          <div style="font-size:11px;color:#64748b;">合計予定人数</div>
+          <div style="font-size:20px;font-weight:700;color:#16a34a;">${totalPlanned}<span style="font-size:13px;">人</span></div>
+        </div>
+      </div>`;
 
-  document.getElementById('schedule-content').innerHTML = summary + html;
+    document.getElementById('schedule-content').innerHTML = summary + html;
+  } catch(e) {
+    App.handleError(e, '作業予定の表示に失敗しました');
+  } finally {
+    App.loading(false);
+  }
 }
 
 function goEditSchedule() {
@@ -305,7 +302,7 @@ function goEditSchedule() {
 
 // ===== 既存の init に統合 =====
 async function init() {
-  loading(true);
+  App.loading(true);
   try {
     const activeSite = await Storage.getActiveSite();
     document.getElementById('header-site').textContent = activeSite ? '【' + activeSite.number + '】' + activeSite.name : '現場未設定';
@@ -315,7 +312,7 @@ async function init() {
       loadReports()
     ]);
   } finally {
-    loading(false);
+    App.loading(false);
   }
 }
 
@@ -328,54 +325,68 @@ function toggleTodayCard() {
 }
 
 async function renderTodayStatus() {
-  // 本日入力状況（折りたたみ内）
-  const sites = await Storage.getSites();
-  cachedSites = sites;
-  const today = App.today();
-  document.getElementById('today-label').textContent = App.formatDate(today);
+  App.loading(true);
+  try {
+    // 本日入力状況（折りたたみ内）
+    const sites = await Storage.getSites();
+    cachedSites = sites;
+    const today = App.today();
+    document.getElementById('today-label').textContent = App.formatDate(today);
 
-  if (sites.length === 0) {
-    document.getElementById('today-status').innerHTML = '<p class="text-muted">現場が登録されていません</p>';
-    return;
-  }
-
-  // 全現場の本日入力状況をまとめて取得
-  const siteDataList = await Promise.all(sites.map(async site => {
-    const [vendors, report] = await Promise.all([
-      Storage.getVendors(site.number),
-      Storage.getReport(site.number, today)
-    ]);
-    return { site, vendors, report };
-  }));
-
-  let html = '';
-  siteDataList.forEach(({ site, vendors, report }) => {
-    if (vendors.length === 0) return;
-    const submittedIds = new Set((report ? report.rows : []).filter(r => r.submittedByWorker).map(r => r.vendorId));
-    const doneCount = vendors.filter(v => submittedIds.has(v.id)).length;
-
-    if (sites.length > 1) {
-      html += `<div style="font-size:12px;font-weight:700;color:#64748b;margin:10px 0 6px;">【${escHtml(site.number)}】${escHtml(site.name)}</div>`;
+    if (sites.length === 0) {
+      document.getElementById('today-status').innerHTML = '<p class="text-muted">現場が登録されていません</p>';
+      return;
     }
-    html += vendors.map(v => {
-      const done = submittedIds.has(v.id);
-      return `<div class="status-item">
-        <span class="vendor-name">${escHtml(v.name)}</span>
-        <span class="badge ${done ? 'badge-success' : 'badge-danger'}">${done ? '✓ 入力済' : '未入力'}</span>
-      </div>`;
-    }).join('');
-  });
 
-  document.getElementById('today-status').innerHTML = html
-    ? '<div class="status-list">' + html + '</div>'
-    : '<p class="text-muted">業者が登録されていません</p>';
-  document.getElementById('bulk-btn').style.display = '';
+    // 全現場の本日入力状況をまとめて取得
+    const siteDataList = await Promise.all(sites.map(async site => {
+      const [vendors, report] = await Promise.all([
+        Storage.getVendors(site.number),
+        Storage.getReport(site.number, today)
+      ]);
+      return { site, vendors, report };
+    }));
+
+    let html = '';
+    siteDataList.forEach(({ site, vendors, report }) => {
+      if (vendors.length === 0) return;
+      const submittedIds = new Set((report ? report.rows : []).filter(r => r.submittedByWorker).map(r => r.vendorId));
+      const doneCount = vendors.filter(v => submittedIds.has(v.id)).length;
+
+      if (sites.length > 1) {
+        html += `<div style="font-size:12px;font-weight:700;color:#64748b;margin:10px 0 6px;">【${App.escHtml(site.number)}】${App.escHtml(site.name)}</div>`;
+      }
+      html += vendors.map(v => {
+        const done = submittedIds.has(v.id);
+        return `<div class="status-item">
+          <span class="vendor-name">${App.escHtml(v.name)}</span>
+          <span class="badge ${done ? 'badge-success' : 'badge-danger'}">${done ? '✓ 入力済' : '未入力'}</span>
+        </div>`;
+      }).join('');
+    });
+
+    document.getElementById('today-status').innerHTML = html
+      ? '<div class="status-list">' + html + '</div>'
+      : '<p class="text-muted">業者が登録されていません</p>';
+    document.getElementById('bulk-btn').style.display = '';
+  } catch(e) {
+    App.handleError(e, '本日の入力状況の読み込みに失敗しました');
+  } finally {
+    App.loading(false);
+  }
 }
 
 async function loadReports() {
-  allReports = await Storage.getAllReports();
-  filtered = [...allReports];
-  renderList();
+  App.loading(true);
+  try {
+    allReports = await Storage.getAllReports();
+    filtered = [...allReports];
+    renderList();
+  } catch(e) {
+    App.handleError(e, '日報一覧の読み込みに失敗しました');
+  } finally {
+    App.loading(false);
+  }
 }
 
 function applyFilter() {
@@ -413,7 +424,7 @@ function renderList() {
         ${bulkMode ? `<input type="checkbox" class="bulk-check" data-id="${r.id}" style="width:20px;height:20px;margin-top:2px;accent-color:#1e40af;">` : ''}
         <div class="report-info">
           <h3>${App.formatDate(r.date)}</h3>
-          <p>【${escHtml(r.siteNumber)}】${escHtml(r.siteName)}</p>
+          <p>【${App.escHtml(r.siteNumber)}】${App.escHtml(r.siteName)}</p>
           <p style="margin-top:2px;">合計 ${totalWorkers}人　${(r.rows||[]).length}業者</p>
         </div>
       </div>
@@ -543,10 +554,6 @@ async function goToday() {
   const site = (await Storage.getActiveSite()) || sites[0];
   if (!site) { alert('現場を先に登録してください'); return; }
   location.href = 'edit.html?site=' + encodeURIComponent(site.number) + '&date=' + App.today();
-}
-
-function escHtml(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // Export/Import
