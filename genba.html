@@ -36,6 +36,20 @@
       <label>工事件名 <span style="color:#dc2626">*</span></label>
       <input type="text" id="f-name" placeholder="例: 〇〇ビル新築工事">
     </div>
+    <div class="form-group">
+      <label>会社名</label>
+      <input type="text" id="f-company" placeholder="例: 株式会社〇〇 中部支店">
+    </div>
+    <div class="input-row">
+      <div class="form-group">
+        <label>現場代理人</label>
+        <input type="text" id="f-representative" placeholder="現場代理人名">
+      </div>
+      <div class="form-group">
+        <label>係員</label>
+        <input type="text" id="f-staff" placeholder="係員名">
+      </div>
+    </div>
     <div class="flex-row">
       <button class="btn btn-primary" onclick="saveGenba()">💾 保存する</button>
       <button class="btn btn-secondary" onclick="cancelEdit()" id="cancel-btn" style="display:none">キャンセル</button>
@@ -113,13 +127,16 @@ async function render() {
 }
 
 async function saveGenba() {
-  const number = document.getElementById('f-number').value.trim();
-  const name   = document.getElementById('f-name').value.trim();
-  const client = document.getElementById('f-client').value.trim();
+  const number         = document.getElementById('f-number').value.trim();
+  const name           = document.getElementById('f-name').value.trim();
+  const client         = document.getElementById('f-client').value.trim();
+  const company        = document.getElementById('f-company').value.trim();
+  const representative = document.getElementById('f-representative').value.trim();
+  const staff          = document.getElementById('f-staff').value.trim();
   if (!number || !name) { alert('工事番号と工事件名は必須です'); return; }
   loading(true);
   const id = document.getElementById('edit-id').value || Storage.uuid();
-  await Storage.saveSite({ id, number, name, client });
+  await Storage.saveSite({ id, number, name, client, company, representative, staff });
   App.toast('現場を保存しました');
   cancelEdit();
   await render();
@@ -129,20 +146,21 @@ async function saveGenba() {
 async function editGenba(id) {
   const s = await Storage.getSite(id);
   if (!s) return;
-  document.getElementById('edit-id').value = s.id;
-  document.getElementById('f-number').value = s.number;
-  document.getElementById('f-name').value   = s.name;
-  document.getElementById('f-client').value = s.client || '';
+  document.getElementById('edit-id').value         = s.id;
+  document.getElementById('f-number').value        = s.number;
+  document.getElementById('f-name').value          = s.name;
+  document.getElementById('f-client').value        = s.client || '';
+  document.getElementById('f-company').value       = s.company || '';
+  document.getElementById('f-representative').value = s.representative || '';
+  document.getElementById('f-staff').value         = s.staff || '';
   document.getElementById('form-title').textContent = '現場を編集';
   document.getElementById('cancel-btn').style.display = '';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function cancelEdit() {
-  document.getElementById('edit-id').value = '';
-  document.getElementById('f-number').value = '';
-  document.getElementById('f-name').value   = '';
-  document.getElementById('f-client').value = '';
+  ['edit-id','f-number','f-name','f-client','f-company','f-representative','f-staff']
+    .forEach(id => document.getElementById(id).value = '');
   document.getElementById('form-title').textContent = '新しい現場を追加';
   document.getElementById('cancel-btn').style.display = 'none';
 }
