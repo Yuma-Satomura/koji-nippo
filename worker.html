@@ -392,14 +392,23 @@ let today = App.today();
 function init() {
   const params = new URLSearchParams(location.search);
   const siteParam = params.get('site');
+  const dataParam = params.get('d');
+
+  // QRコードにデータが埋め込まれている場合はLocalStorageに保存
+  if (dataParam) {
+    try {
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(dataParam))));
+      if (decoded.site)    Storage.saveSite(decoded.site);
+      if (decoded.vendors) Storage.saveVendors(decoded.site.number, decoded.vendors);
+    } catch(e) { /* デコード失敗は無視 */ }
+  }
+
   currentSite = siteParam
     ? (Storage.getSites().find(s => s.number === siteParam) || null)
     : Storage.getActiveSite();
 
   if (!currentSite) {
-    alert('現場が見つかりません。管理者にご確認ください。');
-    // 現場が見つからない場合は何もしない（QRコード経由のみ想定）
-  document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><p>現場が見つかりません。<br>QRコードから再度アクセスしてください。</p></div>';
+    document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;font-family:sans-serif;background:#1e3a8a;min-height:100vh;color:white;"><div style="font-size:48px;margin-bottom:16px;">⚠️</div><p style="font-size:16px;">現場が見つかりません。<br>管理者にQRコードの再発行を<br>依頼してください。</p></div>';
     return;
   }
   document.getElementById('worker-site-name').textContent = '【' + currentSite.number + '】' + currentSite.name;
