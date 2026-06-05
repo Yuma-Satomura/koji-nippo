@@ -230,8 +230,8 @@
       </div>
       <div class="worker-step-title">サインしてください</div>
       <div class="worker-card">
-        <div class="sig-wrapper">
-          <canvas id="sig-canvas"></canvas>
+        <div class="sig-wrapper" style="height:200px;">
+          <canvas id="sig-canvas" style="width:100%;height:200px;display:block;"></canvas>
           <div class="sig-hint" id="sig-hint">ここにサインしてください</div>
         </div>
         <div class="sig-actions mt-8">
@@ -436,6 +436,10 @@ async function init() {
 function showScreen(id) {
   document.querySelectorAll('.worker-content > div').forEach(el => el.style.display = 'none');
   document.getElementById(id).style.display = '';
+  // 署名画面が表示されるタイミングでcanvasサイズを再計算
+  if (id === 'screen-today-sig' && sigPad) {
+    requestAnimationFrame(() => sigPad._resize());
+  }
 }
 
 // ---- 業者 ----
