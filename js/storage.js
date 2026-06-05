@@ -116,6 +116,20 @@ const Storage = {
     return rows[0] ? rows[0].data : null;
   },
 
+  // 業者ごとに「最後に入場した日報」を探す（休工日をまたいでも正確な前回累計を取得）
+  async getPrevReportForVendor(siteNumber, vendorId, dateStr) {
+    const rows = await DB.get('nippo_reports',
+      `?site_number=eq.${encodeURIComponent(siteNumber)}&date=lt.${encodeURIComponent(dateStr)}&order=date.desc&limit=60`);
+    for (const r of rows) {
+      const report = r.data;
+      if (report && report.rows) {
+        const row = report.rows.find(row => row.vendorId === vendorId);
+        if (row) return report;
+      }
+    }
+    return null;
+  },
+
   // ---- 職人入力（一時データ・ローカル保存のまま）----
   getWorkerInputs(siteNumber, dateStr) {
     return JSON.parse(localStorage.getItem('worker_' + siteNumber + '_' + dateStr) || '[]');

@@ -207,27 +207,27 @@ async function init() {
       if (currentSite.representative) report.representative = currentSite.representative;
       if (currentSite.staff)          report.staff          = currentSite.staff;
     }
-    // 前回累計を計算するヘルパー
-    const calcPrevTotal = (vendorId) => {
-      if (!prevReport) return '';
-      const pr = prevReport.rows.find(r => r.vendorId === vendorId);
+    // 業者ごとに最後に入場した日報から前回累計を計算
+    const calcPrevTotal = async (vendorId) => {
+      const pr = await Storage.getPrevReportForVendor(currentSite.number, vendorId, report.date);
       if (!pr) return '';
-      const val = (parseInt(pr.prevTotal) || 0) + (parseInt(pr.actualWorkers) || 0);
+      const row = pr.rows.find(r => r.vendorId === vendorId);
+      if (!row) return '';
+      const val = (parseInt(row.prevTotal) || 0) + (parseInt(row.actualWorkers) || 0);
       return val || '';
     };
 
-    // 業者マスタの全業者が行を持つようにする
-    vendorList.forEach(v => {
+    // 業者マスタの全業者が行を持つようにする（並列で前回累計を取得）
+    await Promise.all(vendorList.map(async v => {
       const existing = report.rows.find(r => r.vendorId === v.id);
       if (!existing) {
         const row = App.newRow(v);
-        row.prevTotal = calcPrevTotal(v.id);
+        row.prevTotal = await calcPrevTotal(v.id);
         report.rows.push(row);
       } else if (existing.prevTotal === '' || existing.prevTotal === undefined || existing.prevTotal === null) {
-        // 行はあるが前回累計が未設定（次回予定で作られた行など）→ 補完
-        existing.prevTotal = calcPrevTotal(v.id);
+        existing.prevTotal = await calcPrevTotal(v.id);
       }
-    });
+    }));
 
     // Merge worker inputs that aren't already in report rows
     const dateStr = dateParam.replace(/-/g,'');
