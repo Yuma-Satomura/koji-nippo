@@ -61,7 +61,6 @@ td.num { text-align: center; }
 <td class="work-text">${this._esc(row.workInstruction)}</td>
 <td class="center">${row.fireCheck ? '<span class="fire-yes">有</span>' : '無'}</td>
 <td class="work-text">${this._esc(row.safetyNotes)}</td>
-<td>${this._esc(row.checker)}</td>
 <td class="sig-cell">${sig}</td>
 </tr>`;
     }).join('');
@@ -84,7 +83,7 @@ td.num { text-align: center; }
 <thead>
 <tr>
 <th>業者名</th><th>予定<br>人数</th><th>本日<br>人数</th><th>前回<br>累計</th><th>累計</th><th>車</th>
-<th>作業指示内容</th><th>火気</th><th>安全注意事項</th><th>確認者</th><th>署名</th>
+<th>作業指示内容</th><th>火気</th><th>安全注意事項</th><th>署名</th>
 </tr>
 </thead>
 <tbody>${rows}</tbody>

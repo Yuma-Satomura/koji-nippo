@@ -273,21 +273,15 @@ function buildRowEl(row, i) {
       <button class="delete-row-btn" onclick="deleteRow('${row.id}')" title="この行を削除">✕</button>
     </div>
 
-    <div class="input-row" style="gap:8px;">
-      <div class="form-group">
-        <label>業者名</label>
-        <select onchange="updateRowVendor('${row.id}', this.value)" style="font-size:14px;">
-          <option value="">（直接入力）</option>
-          ${vendorList.map(v => `<option value="${v.id}" ${v.id===row.vendorId?'selected':''}>${escHtml(v.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>業者名（直接入力）</label>
-        <input type="text" value="${escHtml(row.vendorName)}" oninput="updateRow('${row.id}','vendorName',this.value)" placeholder="業者名">
-      </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>業者名</label>
+      <select onchange="updateRowVendor('${row.id}', this.value)" style="font-size:14px;">
+        <option value="">-- 業者を選択 --</option>
+        ${vendorList.map(v => `<option value="${v.id}" ${v.id===row.vendorId?'selected':''}>${escHtml(v.name)}</option>`).join('')}
+      </select>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr) repeat(3,1fr);gap:8px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px;">
       <div class="form-group" style="margin-bottom:0;">
         <label>予定人数</label>
         <input type="number" class="num-input" value="${row.plannedWorkers}" min="0" oninput="updateRow('${row.id}','plannedWorkers',this.value)">
@@ -307,10 +301,6 @@ function buildRowEl(row, i) {
       <div class="form-group" style="margin-bottom:0;">
         <label>車両台数</label>
         <input type="number" class="num-input" value="${row.vehicles}" min="0" oninput="updateRow('${row.id}','vehicles',this.value);updateTotals()">
-      </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label>確認者</label>
-        <input type="text" value="${escHtml(row.checker)}" oninput="updateRow('${row.id}','checker',this.value)">
       </div>
     </div>
 
