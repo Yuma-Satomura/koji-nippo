@@ -201,13 +201,15 @@
 
         <hr style="border:none;border-top:1px solid #e2e8f0;margin-bottom:16px;">
 
-        <div class="section-title">作業内容</div>
+        <div class="section-title">作業内容 <span style="color:#dc2626;">*</span></div>
         <div style="margin-bottom:12px;">
-          <textarea class="worker-textarea" id="today-work" placeholder="本日の作業内容（任意）"></textarea>
+          <textarea class="worker-textarea" id="today-work" placeholder="本日の作業内容を入力してください"></textarea>
+          <div id="today-work-err" style="display:none;color:#dc2626;font-size:13px;margin-top:4px;">⚠️ 作業内容を入力してください</div>
         </div>
         <div style="margin-bottom:12px;">
-          <div class="count-label">安全注意事項</div>
-          <textarea class="worker-textarea" id="today-safety" placeholder="安全注意事項（任意）"></textarea>
+          <div class="count-label">安全注意事項 <span style="color:#dc2626;">*</span></div>
+          <textarea class="worker-textarea" id="today-safety" placeholder="安全注意事項を入力してください"></textarea>
+          <div id="today-safety-err" style="display:none;color:#dc2626;font-size:13px;margin-top:4px;">⚠️ 安全注意事項を入力してください</div>
         </div>
         <label class="fire-toggle" id="today-fire-toggle" onclick="toggleFire('today')">
           <input type="checkbox" id="today-fire-check" onclick="event.stopPropagation()">
@@ -216,7 +218,7 @@
       </div>
       <div class="worker-nav">
         <button class="btn btn-secondary" onclick="showScreen('screen-mode')">← 戻る</button>
-        <button class="btn btn-worker-primary" onclick="showScreen('screen-today-sig')">署名へ →</button>
+        <button class="btn btn-worker-primary" onclick="goTodaySig()">署名へ →</button>
       </div>
     </div>
 
@@ -612,6 +614,22 @@ async function showNextInput() {
     }
   }
   showScreen('screen-next-input');
+}
+
+// ---- 今日の入力バリデーション ----
+function goTodaySig() {
+  const work   = document.getElementById('today-work').value.trim();
+  const safety = document.getElementById('today-safety').value.trim();
+  const workErr   = document.getElementById('today-work-err');
+  const safetyErr = document.getElementById('today-safety-err');
+  workErr.style.display   = work   ? 'none' : '';
+  safetyErr.style.display = safety ? 'none' : '';
+  if (!work || !safety) {
+    // 最初のエラー箇所にスクロール
+    (!work ? workErr : safetyErr).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  showScreen('screen-today-sig');
 }
 
 // ---- 署名 ----
