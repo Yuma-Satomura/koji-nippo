@@ -220,8 +220,10 @@ async function init() {
         const row = App.newRow(v);
         row.prevTotal = await calcPrevTotal(v.id);
         report.rows.push(row);
-      } else if (existing.prevTotal === '' || existing.prevTotal === undefined || existing.prevTotal === null) {
-        existing.prevTotal = await calcPrevTotal(v.id);
+      } else {
+        // 次回予定から引き継がれた値が古い場合があるため、常に最新データから再計算
+        const calc = await calcPrevTotal(v.id);
+        if (calc !== '') existing.prevTotal = calc;
       }
     }));
 
