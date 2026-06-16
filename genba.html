@@ -72,7 +72,7 @@
     <h2 id="qr-modal-title">📱 職人用QRコード</h2>
     <p id="qr-site-name" style="font-size:13px;color:#64748b;margin-bottom:12px;"></p>
     <input type="hidden" id="qr-site-number">
-    <div id="qr-container" style="margin:0 auto 16px;width:200px;height:200px;"></div>
+    <div id="qr-container" style="margin:0 auto 16px;width:260px;height:260px;"></div>
     <div style="display:none;" id="qr-url"></div>
     <button class="btn btn-primary" onclick="printQR()">🖨️ 印刷する</button>
     <button class="btn btn-secondary modal-close" onclick="closeQR()">閉じる</button>
@@ -218,7 +218,7 @@ async function showQR(siteNumber, siteName) {
   document.getElementById('qr-site-name').textContent = siteName;
   const container = document.getElementById('qr-container');
   container.innerHTML = '';
-  new QRCode(container, { text: url, width: 200, height: 200, colorDark: '#1e3a8a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  new QRCode(container, { text: url, width: 260, height: 260, colorDark: '#1e3a8a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
   document.getElementById('qr-modal').style.display = '';
 }
 
@@ -240,7 +240,7 @@ function printQR() {
     <div id="qr2" style="margin:16px auto;display:inline-block;"></div>
     <p style="font-size:11px;word-break:break-all;color:#aaa;margin-top:10px;">${url}</p>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
-    <script>new QRCode(document.getElementById('qr2'),{text:'${url}',width:260,height:260,colorDark:'#1e3a8a',colorLight:'#ffffff'});setTimeout(()=>window.print(),800);<\/script>
+    <script>new QRCode(document.getElementById('qr2'),{text:'${url}',width:300,height:300,colorDark:'#1e3a8a',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.L});setTimeout(()=>window.print(),800);<\/script>
   </body></html>`);
   w.document.close();
 }
