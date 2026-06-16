@@ -151,21 +151,6 @@ let scheduleDate = null;
 let scheduleSiteNumber = null;
 let cachedSites = [];
 
-async function initScheduleView() {
-  App.loading(true);
-  try {
-    scheduleDate = App.offsetDate(1); // デフォルト翌日
-    const sites = await Storage.getSites();
-    cachedSites = sites;
-    const activeSite = await Storage.getActiveSite();
-    scheduleSiteNumber = sites.length > 0 ? (activeSite || sites[0]).number : null;
-    await renderSchedule();
-  } catch(e) {
-    App.handleError(e, '作業予定の読み込みに失敗しました');
-  } finally {
-    App.loading(false);
-  }
-}
 
 async function shiftScheduleDate(delta) {
   scheduleDate = App.addDays(scheduleDate, delta);
@@ -300,17 +285,19 @@ function goEditSchedule() {
   location.href = 'edit.html?site=' + encodeURIComponent(scheduleSiteNumber) + '&date=' + scheduleDate;
 }
 
-// ===== 既存の init に統合 =====
 async function init() {
   App.loading(true);
   try {
-    const activeSite = await Storage.getActiveSite();
-    document.getElementById('header-site').textContent = activeSite ? '【' + activeSite.number + '】' + activeSite.name : '現場未設定';
-    await Promise.all([
-      initScheduleView(),
-      renderTodayStatus(),
-      loadReports()
-    ]);
+    const [sites, activeSite] = await Promise.all([Storage.getSites(), Storage.getActiveSite()]);
+    cachedSites = sites;
+    scheduleDate = App.offsetDate(1);
+    scheduleSiteNumber = sites.length > 0 ? (activeSite || sites[0]).number : null;
+    document.getElementById('header-site').textContent = activeSite
+      ? '【' + activeSite.number + '】' + activeSite.name
+      : '現場未設定';
+    await Promise.all([renderSchedule(), renderTodayStatus(), loadReports()]);
+  } catch(e) {
+    App.handleError(e, '読み込みに失敗しました');
   } finally {
     App.loading(false);
   }
@@ -327,9 +314,7 @@ function toggleTodayCard() {
 async function renderTodayStatus() {
   App.loading(true);
   try {
-    // 本日入力状況（折りたたみ内）
-    const sites = await Storage.getSites();
-    cachedSites = sites;
+    const sites = cachedSites;
     const today = App.today();
     document.getElementById('today-label').textContent = App.formatDate(today);
 
@@ -461,9 +446,6 @@ function updateBulkInfo() {
   document.getElementById('bulk-info').textContent = count + '件選択中';
 }
 
-document.addEventListener('change', e => {
-  if (e.target.classList.contains('bulk-check')) updateBulkInfo();
-});
 
 async function bulkPrint() {
   const checked = [...document.querySelectorAll('.bulk-check:checked')];
@@ -588,11 +570,9 @@ function importData() {
   input.click();
 }
 
-// モーダル内の変更を検知して既存チェック
 document.addEventListener('change', e => {
-  if (e.target.id === 'modal-site' || e.target.id === 'modal-date') {
-    checkModalExists();
-  }
+  if (e.target.classList.contains('bulk-check')) updateBulkInfo();
+  if (e.target.id === 'modal-site' || e.target.id === 'modal-date') checkModalExists();
 });
 
 init();

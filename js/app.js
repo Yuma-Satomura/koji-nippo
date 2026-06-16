@@ -46,7 +46,10 @@ const App = {
 
   loading(show) {
     const el = document.getElementById('page-loading');
-    if (el) el.style.display = show ? '' : 'none';
+    if (!el) return;
+    // カウンター方式：複数の非同期処理が並列実行されても正しく表示/非表示を管理
+    el._count = Math.max(0, (el._count || 0) + (show ? 1 : -1));
+    el.style.display = el._count > 0 ? '' : 'none';
   },
 
   toast(msg, type = 'success') {

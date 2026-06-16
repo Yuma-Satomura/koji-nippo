@@ -387,7 +387,7 @@ function updateTotals() {
 function updateRow(id, field, value) {
   const row = report.rows.find(r => r.id === id);
   if (!row) return;
-  row[field] = (field === 'fireCheck') ? value : value;
+  row[field] = value;
   autoSave();
 }
 

@@ -735,23 +735,6 @@ async function submitNext() {
   showScreen('screen-done');
 }
 
-// ---- リセット ----
-function resetAll() {
-  selectedVendor = null;
-  todayWorkers = todayVehicles = 0;
-  nextWorkers = 0;
-  todayFire = nextFire = false;
-  nextWorkDate = null;
-  ['today-work','today-safety','next-work','next-safety'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('today-fire-check').checked = false;
-  document.getElementById('today-fire-toggle').classList.remove('active');
-  document.getElementById('next-fire-check').checked = false;
-  document.getElementById('next-fire-toggle').classList.remove('active');
-  if (sigPad) { sigPad.clear(); document.getElementById('sig-hint').style.opacity = '1'; }
-  document.querySelectorAll('.vendor-btn').forEach(b => b.classList.remove('selected'));
-  document.getElementById('vendor-next-btn').disabled = true;
-  showScreen('screen-vendor');
-}
 
 init();
 </script>

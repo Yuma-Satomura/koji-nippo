@@ -79,15 +79,9 @@ function pressNum(n) {
   pin += n;
   updateDots();
   if (pin.length >= MIN && pin.length <= MAX) {
-    // Try to auto-submit when PIN matches stored length
     const stored = Storage.getPin();
-    if (stored && pin.length === stored.length) {
+    if (stored ? pin.length === stored.length : pin.length === MIN) {
       setTimeout(tryLogin, 100);
-    } else if (!stored && pin.length === MIN) {
-      // New PIN: confirm
-      if (pin.length === MIN) {
-        setTimeout(tryLogin, 100);
-      }
     }
   }
 }
@@ -120,7 +114,9 @@ function updateDots() {
 }
 
 async function tryLogin() {
+  App.loading(true);
   const ok = await Auth.login(pin);
+  App.loading(false);
   if (ok) {
     redirectAfterLogin();
   } else {
