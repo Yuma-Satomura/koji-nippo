@@ -29,6 +29,7 @@ const Auth = {
   },
 
   requireAuth() {
+    if (DEMO) return true;
     if (!this.isLoggedIn()) {
       const current = encodeURIComponent(location.href);
       location.href = 'admin.html?next=' + current;

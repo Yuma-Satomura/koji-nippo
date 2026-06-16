@@ -13,7 +13,7 @@
   <h1>🏗️ 現場管理</h1>
   <div class="header-actions">
     <a href="list.html" class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);">← 日報一覧</a>
-    <button class="btn btn-secondary btn-sm" onclick="Auth.logout();location.href='admin.html'">ログアウト</button>
+    <button class="btn btn-secondary btn-sm" onclick="App.logout()">ログアウト</button>
   </div>
 </header>
 
@@ -211,7 +211,7 @@ async function showQR(siteNumber, siteName) {
   const json = JSON.stringify({ site, vendors });
   const payload = btoa(unescape(encodeURIComponent(json)))
     .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-  const url = base + '?site=' + encodeURIComponent(siteNumber) + '&d=' + payload;
+  const url = base + '?site=' + encodeURIComponent(siteNumber) + '&d=' + payload + (DEMO ? '&demo=1' : '');
   document.getElementById('qr-modal-title').textContent = '📱 ' + siteName;
   document.getElementById('qr-url').textContent = url;
   document.getElementById('qr-site-number').value = siteNumber;

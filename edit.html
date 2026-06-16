@@ -173,7 +173,7 @@ async function init() {
       Storage.getActiveSite()
     ]);
     currentSite = sites.find(s => s.number === siteNumber) || activeSite;
-    if (!currentSite) { alert('現場が見つかりません'); location.href='list.html'; return; }
+    if (!currentSite) { alert('現場が見つかりません'); App.nav('list.html'); return; }
 
     document.getElementById('header-site').textContent = '【' + currentSite.number + '】' + currentSite.name;
 

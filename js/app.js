@@ -61,6 +61,25 @@ const App = {
     setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2500);
   },
 
+  // ---- ナビゲーション（デモモード対応）----
+  nav(url) {
+    if (DEMO) {
+      location.href = url + (url.includes('?') ? '&' : '?') + 'demo=1';
+    } else {
+      location.href = url;
+    }
+  },
+
+  // ログアウト（デモモードではトップに戻るだけ）
+  logout() {
+    if (DEMO) {
+      App.nav('list.html');
+      return;
+    }
+    Auth.logout();
+    location.href = 'admin.html';
+  },
+
   // ---- データモデル ----
   newReport(site, dateStr) {
     return {
@@ -104,6 +123,25 @@ const App = {
     this.toast(msg + '（' + (err.message || err) + '）', 'danger');
   }
 };
+
+// デモモードバナーとリンクパッチ
+if (typeof DEMO !== 'undefined' && DEMO) {
+  document.addEventListener('DOMContentLoaded', () => {
+    // バナー表示
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:#f59e0b;color:white;text-align:center;padding:10px 16px;font-size:14px;font-weight:700;position:sticky;top:0;z-index:9999;letter-spacing:.03em;';
+    banner.textContent = '📋 デモモード — 表示はサンプルデータです。変更は保存されません。';
+    document.body.insertBefore(banner, document.body.firstChild);
+
+    // 内部リンクに ?demo=1 を付与
+    document.querySelectorAll('a[href]').forEach(el => {
+      const href = el.getAttribute('href');
+      if (href && !href.startsWith('http') && !href.startsWith('//') && !href.startsWith('#') && !href.startsWith('mailto')) {
+        el.setAttribute('href', href + (href.includes('?') ? '&' : '?') + 'demo=1');
+      }
+    });
+  });
+}
 
 // 未処理のPromiseエラーをキャッチ
 window.addEventListener('unhandledrejection', e => {

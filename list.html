@@ -16,7 +16,7 @@
     <a href="genba.html" class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);">現場管理</a>
     <button class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);" onclick="exportData()">エクスポート</button>
     <button class="btn btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.5);" onclick="importData()">インポート</button>
-    <button class="btn btn-secondary btn-sm" onclick="Auth.logout();location.href='admin.html'">ログアウト</button>
+    <button class="btn btn-secondary btn-sm" onclick="App.logout()">ログアウト</button>
   </div>
 </header>
 
@@ -282,7 +282,7 @@ async function renderSchedule() {
 
 function goEditSchedule() {
   if (!scheduleSiteNumber || !scheduleDate) return;
-  location.href = 'edit.html?site=' + encodeURIComponent(scheduleSiteNumber) + '&date=' + scheduleDate;
+  App.nav('edit.html?site=' + encodeURIComponent(scheduleSiteNumber) + '&date=' + scheduleDate);
 }
 
 async function init() {
@@ -528,14 +528,14 @@ function goNewReport() {
   const siteNumber = document.getElementById('modal-site').value;
   const date = document.getElementById('modal-date').value;
   if (!siteNumber || !date) { alert('現場と日付を選択してください'); return; }
-  location.href = 'edit.html?site=' + encodeURIComponent(siteNumber) + '&date=' + date;
+  App.nav('edit.html?site=' + encodeURIComponent(siteNumber) + '&date=' + date);
 }
 
 async function goToday() {
   const sites = await Storage.getSites();
   const site = (await Storage.getActiveSite()) || sites[0];
   if (!site) { alert('現場を先に登録してください'); return; }
-  location.href = 'edit.html?site=' + encodeURIComponent(site.number) + '&date=' + App.today();
+  App.nav('edit.html?site=' + encodeURIComponent(site.number) + '&date=' + App.today());
 }
 
 // Export/Import
