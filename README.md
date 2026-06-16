@@ -2,7 +2,10 @@
 
 現場の紙ベース日報をデジタル化する、建設現場向けの日報管理Webアプリです。
 
-**🔗 デモ：** https://koji-nippo.vercel.app
+**🔗 職人入力デモ：** https://koji-nippo.vercel.app/worker.html?site=DEMO-001&d=eyJzaXRlIjp7ImlkIjoiZGVtby1zaXRlLTAwMSIsIm51bWJlciI6IkRFTU8tMDAxIiwibmFtZSI6IuOCteODs-ODl-ODq-ODk-ODq-aWsOevieW3peS6iyIsImNsaWVudCI6IuOAh-OAh-W7uuioreagquW8j-S8muekviIsImNvbXBhbnkiOiLmoKrlvI_kvJrnpL7jgrXjg7Pjg5fjg6vlu7roqK0iLCJyZXByZXNlbnRhdGl2ZSI6IuWxseeUsCDlpKrpg44iLCJzdGFmZiI6IuS9kOiXpCDmrKHpg44ifSwidmVuZG9ycyI6W3siaWQiOiJ2MSIsIm5hbWUiOiLpm7vmsJflt6Xkuovmpa3ogIVBIiwic2l0ZV9udW1iZXIiOiJERU1PLTAwMSJ9LHsiaWQiOiJ2MiIsIm5hbWUiOiLlhoXoo4Xlt6Xkuovmpa3ogIVCIiwic2l0ZV9udW1iZXIiOiJERU1PLTAwMSJ9LHsiaWQiOiJ2MyIsIm5hbWUiOiLoqK3lgpnlt6Xkuovmpa3ogIVDIiwic2l0ZV9udW1iZXIiOiJERU1PLTAwMSJ9XX0
+
+> 上のリンクはサンプルデータ入りの職人入力画面です。ログイン不要で操作できます。  
+> 管理画面（日報一覧・現場管理・業者マスタ）はPIN認証が必要です。
 
 ---
 
