@@ -1,8 +1,11 @@
-// Supabase設定
+// Supabase設定（読み取り専用・anonキーはSupabaseの設計上公開前提）
 const SUPABASE_URL = 'https://paqqiuinklfsaeyqcfmm.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhcXFpdWlua2xmc2FleXFjZm1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNDA2NDEsImV4cCI6MjA5NDgxNjY0MX0.R1x31j4hKxrREZwdgZs2q_rFn1uITPiNoareBIpEkKU';
 
-// Supabase REST APIヘルパー
+// 書き込みはEdge Function経由（PINで認証）
+const EDGE_BASE = 'https://paqqiuinklfsaeyqcfmm.supabase.co/functions/v1';
+
+// Supabase REST APIヘルパー（読み取り専用）
 const DB = {
   async get(table, query = '') {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
@@ -10,26 +13,35 @@ const DB = {
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
-  },
-  async upsert(table, data) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+  }
+};
+
+// Edge Function APIヘルパー（書き込み用）
+const API = {
+  async admin(action, data) {
+    const pin = Storage.getPin();
+    const res = await fetch(`${EDGE_BASE}/admin-write`, {
       method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates,return=minimal'
-      },
-      body: JSON.stringify(data)
+      headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin },
+      body: JSON.stringify({ action, data })
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   },
-  async delete(table, query) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+  async worker(action, data) {
+    const res = await fetch(`${EDGE_BASE}/worker-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data })
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   }
 };
 
@@ -46,7 +58,7 @@ const Storage = {
   getActiveSiteId()   { return localStorage.getItem('active_genba') || ''; },
   setActiveSite(id)   { localStorage.setItem('active_genba', id); },
 
-  // ---- 現場マスタ ----
+  // ---- 現場マスタ（読み取りは直接、書き込みはEdge Function）----
   async getSites() {
     return DB.get('nippo_sites', '?order=created_at.asc');
   },
@@ -60,10 +72,10 @@ const Storage = {
     return this.getSite(id);
   },
   async saveSite(site) {
-    await DB.upsert('nippo_sites', site);
+    await API.admin('saveSite', site);
   },
   async deleteSite(id) {
-    await DB.delete('nippo_sites', `?id=eq.${encodeURIComponent(id)}`);
+    await API.admin('deleteSite', { id });
   },
 
   // ---- 業者マスタ ----
@@ -71,40 +83,31 @@ const Storage = {
     return DB.get('nippo_vendors', `?site_number=eq.${encodeURIComponent(siteNumber)}&order=created_at.asc`);
   },
   async saveVendor(siteNumber, vendor) {
-    await DB.upsert('nippo_vendors', { ...vendor, site_number: siteNumber });
+    await API.admin('saveVendor', { siteNumber, vendor });
   },
   async saveVendors(siteNumber, vendors) {
-    // 既存を全削除してから一括挿入
-    await DB.delete('nippo_vendors', `?site_number=eq.${encodeURIComponent(siteNumber)}`);
-    if (vendors.length > 0) {
-      await DB.upsert('nippo_vendors', vendors.map(v => ({ ...v, site_number: siteNumber })));
-    }
+    await API.admin('saveVendors', { siteNumber, vendors });
   },
   async deleteVendor(siteNumber, id) {
-    await DB.delete('nippo_vendors', `?id=eq.${encodeURIComponent(id)}&site_number=eq.${encodeURIComponent(siteNumber)}`);
+    await API.admin('deleteVendor', { siteNumber, id });
   },
 
   // ---- 日報 ----
   async getReport(siteNumber, dateStr) {
-    const date = dateStr.replace(/-/g, '-'); // YYYY-MM-DD形式
     const rows = await DB.get('nippo_reports',
-      `?site_number=eq.${encodeURIComponent(siteNumber)}&date=eq.${encodeURIComponent(date)}`);
+      `?site_number=eq.${encodeURIComponent(siteNumber)}&date=eq.${encodeURIComponent(dateStr)}`);
     return rows[0] ? rows[0].data : null;
   },
-  async saveReport(report) {
-    const date = report.date;
-    report.updatedAt = new Date().toISOString();
-    await DB.upsert('nippo_reports', {
-      id: `${report.siteNumber}_${date}`,
-      site_number: report.siteNumber,
-      date: date,
-      data: report,
-      updated_at: new Date().toISOString()
-    });
+  // source: 'admin'（管理者保存）or 'worker'（職人送信）
+  async saveReport(report, source = 'admin') {
+    if (source === 'worker') {
+      await API.worker('saveReport', { report });
+    } else {
+      await API.admin('saveReport', { report });
+    }
   },
   async deleteReport(siteNumber, dateStr) {
-    await DB.delete('nippo_reports',
-      `?site_number=eq.${encodeURIComponent(siteNumber)}&date=eq.${encodeURIComponent(dateStr)}`);
+    await API.admin('deleteReport', { siteNumber, date: dateStr });
   },
   async getAllReports() {
     const rows = await DB.get('nippo_reports', '?order=date.desc');
@@ -152,9 +155,7 @@ const Storage = {
     return JSON.stringify({ sites, vendors, reports }, null, 2);
   },
   async importAll(jsonStr) {
-    const { sites, vendors, reports } = JSON.parse(jsonStr);
-    if (sites)   await DB.upsert('nippo_sites', sites);
-    if (vendors) await DB.upsert('nippo_vendors', vendors);
-    if (reports) await DB.upsert('nippo_reports', reports);
+    const parsed = JSON.parse(jsonStr);
+    await API.admin('importAll', parsed);
   }
 };

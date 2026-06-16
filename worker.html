@@ -689,7 +689,7 @@ async function submitToday() {
     report.rows.push(row);
   }
   Object.assign(row, { actualWorkers: todayWorkers, vehicles: todayVehicles, workInstruction, safetyNotes, fireCheck: todayFire, signature: sig, submittedByWorker: true });
-  await Storage.saveReport(report);
+  await Storage.saveReport(report, 'worker');
 
   document.getElementById('done-title').textContent = '送信完了しました';
   document.getElementById('done-sub').textContent = selectedVendor.name + ' の本日分を受け付けました';
@@ -704,7 +704,7 @@ async function submitNext() {
     let row = report.rows.find(r => r.vendorId === selectedVendor.id);
     if (!row) { row = App.newRow(selectedVendor); report.rows.push(row); }
     row.nextWorkDate = '未定';
-    await Storage.saveReport(report);
+    await Storage.saveReport(report, 'worker');
   } else {
     // 対象日の日報に予定データを保存
     let report = (await Storage.getReport(currentSite.number, nextWorkDate)) || App.newReport(currentSite, nextWorkDate);
@@ -726,7 +726,7 @@ async function submitNext() {
       fireCheck: nextFire,
       nextWorkDate
     });
-    await Storage.saveReport(report);
+    await Storage.saveReport(report, 'worker');
   }
 
   const label = nextWorkDate === '未定' ? '未定' : App.formatDate(nextWorkDate);

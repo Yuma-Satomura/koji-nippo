@@ -119,8 +119,8 @@ function updateDots() {
   }
 }
 
-function tryLogin() {
-  const ok = Auth.login(pin);
+async function tryLogin() {
+  const ok = await Auth.login(pin);
   if (ok) {
     redirectAfterLogin();
   } else {

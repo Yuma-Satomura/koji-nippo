@@ -5,17 +5,21 @@ const Auth = {
     return sessionStorage.getItem(this.SESSION_KEY) === '1';
   },
 
-  login(pin) {
-    const stored = Storage.getPin();
-    if (!stored) {
-      // First time: set the PIN and log in
-      Storage.setPin(pin);
-      sessionStorage.setItem(this.SESSION_KEY, '1');
-      return true;
-    }
-    if (pin === stored) {
-      sessionStorage.setItem(this.SESSION_KEY, '1');
-      return true;
+  // PIN をEdge Functionで検証（初回はサーバーにPINを登録）
+  async login(pin) {
+    try {
+      const res = await fetch(`${EDGE_BASE}/admin-write`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin },
+        body: JSON.stringify({ action: 'auth', data: {} })
+      });
+      if (res.ok) {
+        Storage.setPin(pin);
+        sessionStorage.setItem(this.SESSION_KEY, '1');
+        return true;
+      }
+    } catch (e) {
+      console.error('Auth error:', e);
     }
     return false;
   },
