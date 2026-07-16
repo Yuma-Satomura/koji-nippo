@@ -93,11 +93,11 @@ const DEMO_DATA = {
 };
 
 // === Supabase設定（読み取り専用・anonキーはSupabaseの設計上公開前提）===
-const SUPABASE_URL = 'https://paqqiuinklfsaeyqcfmm.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhcXFpdWlua2xmc2FleXFjZm1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNDA2NDEsImV4cCI6MjA5NDgxNjY0MX0.R1x31j4hKxrREZwdgZs2q_rFn1uITPiNoareBIpEkKU';
+const SUPABASE_URL = 'https://fzssrbinafcylqldtoiu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6c3NyYmluYWZjeWxxbGR0b2l1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNzQ5MTUsImV4cCI6MjA5OTc1MDkxNX0.jsgmrNgqN5sZfa-mP-UWM1pARcAmGHQax3lX4zbpYM8';
 
 // 書き込みはEdge Function経由（PINで認証）
-const EDGE_BASE = 'https://paqqiuinklfsaeyqcfmm.supabase.co/functions/v1';
+const EDGE_BASE = 'https://fzssrbinafcylqldtoiu.supabase.co/functions/v1';
 
 // Supabase REST APIヘルパー（読み取り専用）
 const DB = {
