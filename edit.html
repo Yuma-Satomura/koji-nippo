@@ -424,7 +424,8 @@ async function addFromVendor() {
   const existing = report.rows.find(r => r.vendorId === vendorId);
   if (existing) { App.toast('この業者はすでに追加されています', 'warning'); return; }
   const row = App.newRow(v);
-  const prev = await Storage.getPrevReport(currentSite.number, report.date);
+  // その業者が最後に入場した日報まで遡って前回累計を引き継ぐ
+  const prev = await Storage.getPrevReportForVendor(currentSite.number, v.id, report.date);
   if (prev) {
     const prevRow = prev.rows.find(r => r.vendorId === v.id);
     if (prevRow) row.prevTotal = (parseInt(prevRow.prevTotal)||0) + (parseInt(prevRow.actualWorkers)||0);

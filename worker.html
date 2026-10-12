@@ -681,7 +681,9 @@ async function submitToday() {
   let row = report.rows.find(r => r.vendorId === selectedVendor.id);
   if (!row) {
     row = App.newRow(selectedVendor);
-    const prev = await Storage.getPrevReport(currentSite.number, today);
+    // その業者が最後に入場した日報まで遡って前回累計を引き継ぐ
+    // （直前の日報にこの業者が居ないと累計が途切れるため getPrevReportForVendor を使う）
+    const prev = await Storage.getPrevReportForVendor(currentSite.number, selectedVendor.id, today);
     if (prev) {
       const pr = prev.rows.find(r => r.vendorId === selectedVendor.id);
       if (pr) row.prevTotal = (parseInt(pr.prevTotal)||0) + (parseInt(pr.actualWorkers)||0);
@@ -711,8 +713,8 @@ async function submitNext() {
     let row = report.rows.find(r => r.vendorId === selectedVendor.id);
     if (!row) {
       row = App.newRow(selectedVendor);
-      // 前回累計の引き継ぎ
-      const prev = await Storage.getPrevReport(currentSite.number, nextWorkDate);
+      // 前回累計の引き継ぎ（その業者が最後に入場した日報まで遡る）
+      const prev = await Storage.getPrevReportForVendor(currentSite.number, selectedVendor.id, nextWorkDate);
       if (prev) {
         const pr = prev.rows.find(r => r.vendorId === selectedVendor.id);
         if (pr) row.prevTotal = (parseInt(pr.prevTotal)||0) + (parseInt(pr.actualWorkers)||0);
