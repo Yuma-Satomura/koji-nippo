@@ -120,6 +120,7 @@ async function render() {
       </div>
       <div class="eq-actions">
         <button class="btn btn-ghost btn-sm" onclick="showQr('${e.id}')">QR</button>
+        <a class="btn btn-ghost btn-sm" href="equipment-history.html?eq=${encodeURIComponent(e.id)}">記録</a>
         <button class="btn btn-ghost btn-sm" onclick="editEq('${e.id}')">編集</button>
         <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="delEq('${e.id}','${App.escHtml(e.name)}')">削除</button>
       </div>
