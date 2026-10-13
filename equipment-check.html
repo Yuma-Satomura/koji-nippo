@@ -224,17 +224,23 @@ async function submit() {
 
   // 画面のインデックスキー → 項目名キーに変換して保存（記録を自己説明的にする）
   const itemsLabeled = {};
-  GROUPS.forEach((g, gi) => g.items.forEach((label, ii) => {
-    const r = results[gi + '_' + ii];
-    if (r) itemsLabeled[label] = r;
+  const sections = GROUPS.map((g, gi) => ({
+    group: g.group,
+    items: g.items.map((label, ii) => {
+      const r = results[gi + '_' + ii] || '';
+      if (r) itemsLabeled[label] = r;
+      return { label, result: r };
+    })
   }));
 
   const inspection = {
     equipmentId: eqId,
     equipmentName: equipment.name,
+    title: '垂直昇降式高所作業車 作業開始前点検表',
     date: document.getElementById('idate').value || App.today(),
     inspector,
-    items: itemsLabeled,
+    items: itemsLabeled,  // 件数集計・後方互換のため項目名キーも保持
+    sections,             // 帳票（PDF）用のグループ構造つき
     overall,
     memo: document.getElementById('memo').value
   };
