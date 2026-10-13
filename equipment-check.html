@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>機械点検</title>
+<title>高所作業車 始業前点検</title>
 <link rel="stylesheet" href="css/style.css">
 <style>
 .chk-wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
@@ -11,7 +11,9 @@
 .eq-head .n { font-size:20px; font-weight:800; }
 .eq-head .k { font-size:13px; opacity:.85; margin-top:3px; }
 .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; margin-bottom:14px; }
-.item { padding:12px 0; border-bottom:1px solid #f1f5f9; }
+.group-h { font-weight:800; color:#1e40af; font-size:14px; margin:14px 0 2px; }
+.group-h:first-child { margin-top:0; }
+.item { padding:10px 0; border-bottom:1px solid #f1f5f9; }
 .item:last-child { border-bottom:0; }
 .item .label { font-size:14px; font-weight:600; margin-bottom:8px; }
 .opts { display:flex; gap:8px; }
@@ -26,6 +28,8 @@
 .overall .opt { padding:13px 0; font-size:15px; }
 .done-screen { text-align:center; padding:48px 16px; display:none; }
 .done-screen .ico { font-size:56px; }
+.bulk { display:flex; justify-content:flex-end; margin-bottom:4px; }
+.bulk button { background:none; border:1px solid #cbd5e1; border-radius:8px; padding:6px 12px; font-size:13px; color:#15803d; cursor:pointer; }
 .notice { background:#fef3c7; color:#92400e; border-radius:9px; padding:10px 12px; font-size:13px; margin-bottom:14px; display:none; }
 </style>
 </head>
@@ -50,7 +54,8 @@
   </div>
 
   <div class="card">
-    <div style="font-weight:700; margin-bottom:6px;">始業前点検</div>
+    <div style="font-weight:700; margin-bottom:2px;">始業前点検</div>
+    <div class="bulk"><button type="button" onclick="allGood()">すべて「良」</button></div>
     <div id="items"></div>
   </div>
 
@@ -86,15 +91,14 @@
 <script src="js/storage.js"></script>
 <script src="js/app.js"></script>
 <script>
-const ITEMS = [
-  { key:'engine',  label:'エンジン始動・異音' },
-  { key:'fluids',  label:'油脂類（作動油・燃料・冷却水）の量・漏れ' },
-  { key:'running', label:'タイヤ／クローラ・足回り' },
-  { key:'brake',   label:'ブレーキ・操作レバー' },
-  { key:'safety',  label:'安全装置・警報（アウトリガー／過負荷等）' },
-  { key:'body',    label:'外観・損傷・ボルトゆるみ' },
-  { key:'lamp',    label:'灯火・方向指示・ミラー' }
+// 高所作業車 始業前点検表（その１）の項目を反映
+const GROUPS = [
+  { group: '走行部',   items: ['ブレーキ', '駐車ブレーキ', 'クラッチ', 'タイヤ'] },
+  { group: '作業装置', items: ['操作装置', 'ブーム', '本体', '各配線', '作業床', '手摺の破損', 'ボルト・ピン緩み'] },
+  { group: '安全装置', items: ['警報装置', '照明'] },
+  { group: 'その他',   items: ['エンジンオイル', '清掃状況'] }
 ];
+const ALL_ITEMS = GROUPS.flatMap(g => g.items);
 
 const results = {};
 let overall = '';
@@ -107,54 +111,65 @@ async function init() {
   try {
     equipment = await Storage.getEquipmentItem(eqId);
     if (!equipment) { document.getElementById('error-screen').style.display = ''; return; }
+
     document.getElementById('eq-name').textContent = equipment.name;
     document.getElementById('eq-kind').textContent =
       (equipment.kind || '') + (equipment.site_number ? ' ・ 現場 ' + equipment.site_number : '');
     document.getElementById('idate').value = App.today();
-
     renderItems();
+    // 機械が見つかった時点でフォームを表示（履歴読み込みの失敗で空白にならないように）
+    document.getElementById('main').style.display = '';
+  } catch (e) {
+    document.getElementById('error-screen').style.display = '';
+    App.loading(false);
+    return;
+  }
+  App.loading(false);
 
-    // 本日分があれば読み込んで上書き編集
+  // 本日分があれば読み込んで上書き編集（失敗してもフォームは表示済み）
+  try {
     const existing = await Storage.getInspection(eqId, App.today());
     if (existing) {
       document.getElementById('today-notice').style.display = '';
       document.getElementById('inspector').value = existing.inspector || '';
       document.getElementById('memo').value = existing.memo || '';
-      Object.entries(existing.items || {}).forEach(([k, v]) => setItem(k, v, true));
+      Object.entries(existing.items || {}).forEach(([k, v]) => setItem(k, v));
       if (existing.overall) setOverall(existing.overall);
     }
-    document.getElementById('main').style.display = '';
-  } catch (e) {
-    App.handleError(e, '読み込みに失敗しました');
-  } finally { App.loading(false); }
+  } catch (e) { /* 履歴は任意。無視してフォームは使える */ }
 }
 
 function renderItems() {
-  document.getElementById('items').innerHTML = ITEMS.map(it => `
-    <div class="item">
-      <div class="label">${App.escHtml(it.label)}</div>
-      <div class="opts">
-        <div class="opt" id="${it.key}-良"     onclick="setItem('${it.key}','良')">良</div>
-        <div class="opt" id="${it.key}-要注意" onclick="setItem('${it.key}','要注意')">要注意</div>
-        <div class="opt" id="${it.key}-不良"   onclick="setItem('${it.key}','不良')">不良</div>
-      </div>
-    </div>`).join('');
+  document.getElementById('items').innerHTML = GROUPS.map(g => `
+    <div class="group-h">${App.escHtml(g.group)}</div>
+    ${g.items.map(label => `
+      <div class="item">
+        <div class="label">${App.escHtml(label)}</div>
+        <div class="opts">
+          <div class="opt" data-k="${App.escHtml(label)}" data-v="良"     onclick="setItem('${App.escHtml(label)}','良')">良</div>
+          <div class="opt" data-k="${App.escHtml(label)}" data-v="要注意" onclick="setItem('${App.escHtml(label)}','要注意')">要注意</div>
+          <div class="opt" data-k="${App.escHtml(label)}" data-v="不良"   onclick="setItem('${App.escHtml(label)}','不良')">不良</div>
+        </div>
+      </div>`).join('')}
+  `).join('');
 }
 
 function setItem(key, val) {
   results[key] = val;
-  ['良','要注意','不良'].forEach(v => {
-    const el = document.getElementById(key + '-' + v);
-    if (!el) return;
-    el.classList.remove('sel-good','sel-warn','sel-bad');
-    if (v === val) el.classList.add(v === '良' ? 'sel-good' : v === '要注意' ? 'sel-warn' : 'sel-bad');
+  document.querySelectorAll(`.opt[data-k="${CSS.escape(key)}"]`).forEach(el => {
+    el.classList.remove('sel-good', 'sel-warn', 'sel-bad');
+    if (el.dataset.v === val) {
+      el.classList.add(val === '良' ? 'sel-good' : val === '要注意' ? 'sel-warn' : 'sel-bad');
+    }
   });
 }
+
+function allGood() { ALL_ITEMS.forEach(label => setItem(label, '良')); }
 
 function setOverall(val) {
   overall = val;
   document.querySelectorAll('[data-overall]').forEach(el => {
-    el.classList.remove('sel-good','sel-bad');
+    el.classList.remove('sel-good', 'sel-bad');
     if (el.dataset.overall === val) el.classList.add(val === '使用可' ? 'sel-good' : 'sel-bad');
   });
 }
