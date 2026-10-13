@@ -41,6 +41,12 @@
   </div>
 
   <div id="ky-ui" style="display:none;">
+    <div class="card">
+      <h2 style="font-size:15px; margin:0 0 10px; color:#1e40af;">大西熱学からの指示事項（安全・作業）</h2>
+      <div style="font-size:12px; color:#64748b; margin-bottom:8px;">前もって入力してください。この現場のKYに自動で反映されます。</div>
+      <textarea id="inst-text" rows="3" style="width:100%; box-sizing:border-box; padding:10px 12px; font-size:15px; border:1.5px solid #cbd5e1; border-radius:9px;"></textarea>
+      <button class="btn btn-primary" style="width:100%; margin-top:10px;" onclick="saveInst()">指示事項を保存</button>
+    </div>
     <div class="card" style="background:#eef2ff; border-color:#c7d2fe;">
       <div style="font-size:13px; color:#1e40af;">KYは現場のQRから、業者ごとに職長が記入し作業員が署名します。ここでは閲覧とPDF出力ができます。</div>
     </div>
@@ -76,6 +82,7 @@ async function init() {
     document.getElementById('site-banner').textContent =
       '現場：【' + currentSite.number + '】' + currentSite.name;
     document.getElementById('ky-ui').style.display = '';
+    document.getElementById('inst-text').value = await Storage.getKyInstruction(currentSite.number);
     await render();
   } catch (e) { App.handleError(e, '読み込みに失敗しました'); }
   finally { App.loading(false); }
@@ -106,6 +113,15 @@ async function render() {
       </div>
     </div>`;
   }).join('');
+}
+
+async function saveInst() {
+  App.loading(true);
+  try {
+    await Storage.saveKyInstruction(currentSite.number, document.getElementById('inst-text').value);
+    App.toast('指示事項を保存しました');
+  } catch (e) { App.handleError(e, '保存に失敗しました'); }
+  finally { App.loading(false); }
 }
 
 async function pdf(i) {

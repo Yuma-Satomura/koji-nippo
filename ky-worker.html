@@ -27,7 +27,7 @@
 .v-haz { font-weight:600; font-size:14px; } .v-meas { font-size:13px; color:#475569; margin-top:3px; } .v-meta { font-size:12px; margin-top:3px; }
 .signer { display:inline-flex; align-items:center; gap:6px; background:#f1f5f9; border-radius:999px; padding:4px 10px; margin:3px 4px 3px 0; font-size:13px; }
 .signer img { height:24px; }
-#sig-canvas { width:100%; height:200px; border:1.5px solid #cbd5e1; border-radius:9px; touch-action:none; }
+#sig-canvas, #foreman-canvas { width:100%; height:180px; border:1.5px solid #cbd5e1; border-radius:9px; touch-action:none; }
 .done-screen { text-align:center; padding:48px 16px; display:none; } .done-screen .ico { font-size:56px; }
 .btn-xl { width:100%; padding:14px; font-size:16px; }
 .hint { font-size:11px; color:#64748b; }
@@ -46,7 +46,8 @@
     <div class="card">
       <h2>KY記入（職長・現場責任者）</h2>
       <div class="field"><label>作業内容</label><textarea id="f-work" rows="2"></textarea></div>
-      <div class="field"><label>大西熱学からの指示事項（安全・作業）</label><textarea id="f-inst" rows="2"></textarea></div>
+      <div class="field"><label>大西熱学からの指示事項（安全・作業）<span class="hint">　※管理者が入力</span></label>
+        <div id="f-inst-view" style="padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; min-height:40px; white-space:pre-wrap; font-size:14px; color:#334155;"></div></div>
       <div class="field"><label>本日の行動目標</label><input type="text" id="f-goal"></div>
       <div class="field"><label>会社名（グループ名）</label><input type="text" id="f-company"></div>
     </div>
@@ -61,8 +62,14 @@
       <div id="quals"></div>
       <button class="addbtn" onclick="addQual()">＋ 行を追加</button>
     </div>
+    <div class="card">
+      <h2>職長・現場責任者の署名</h2>
+      <div class="field"><label>職長氏名</label><input type="text" id="f-foreman-name"></div>
+      <div class="field" style="margin-bottom:8px;"><label>署名</label><canvas id="foreman-canvas"></canvas></div>
+      <button class="btn btn-ghost btn-sm" onclick="clearForeman()">署名クリア</button>
+    </div>
     <button class="btn btn-primary btn-xl" onclick="saveFill()">登録する</button>
-    <button class="btn btn-secondary btn-xl" style="margin-top:8px;" id="fill-cancel" onclick="showView()" style="display:none;">キャンセル</button>
+    <button class="btn btn-secondary btn-xl" style="margin-top:8px; display:none;" id="fill-cancel" onclick="showView()">キャンセル</button>
   </div>
 
   <!-- 確認＋署名（作業員） -->
@@ -80,6 +87,10 @@
     <div class="card" id="v-qual-card">
       <h2>有資格作業及び作業者</h2>
       <div id="v-quals" style="font-size:14px;"></div>
+    </div>
+    <div class="card">
+      <h2>職長・現場責任者</h2>
+      <div id="v-foreman"><span class="hint">未登録</span></div>
     </div>
     <div class="card">
       <h2>署名済みの作業員</h2>
@@ -132,7 +143,9 @@ const vendorName = params.get('vname') || '';
 const today = App.today();
 let ky = null;
 let sigPad = null;
-let siteName = '';  // 登録現場の工事名（現場ごと）
+let foremanPad = null;
+let siteName = '';          // 登録現場の工事名（現場ごと）
+let adminInstruction = '';  // 大西熱学からの指示事項（管理者が前もって入力）
 
 function show(id) { ['screen-fill','screen-view','screen-sign','screen-done','screen-error'].forEach(s => document.getElementById(s).style.display = s === id ? '' : 'none'); }
 
@@ -147,6 +160,7 @@ async function init() {
     document.getElementById('h-vendor').textContent = vendorName;
     document.getElementById('h-date').textContent = App.formatDate(today);
 
+    adminInstruction = await Storage.getKyInstruction(siteNumber);
     ky = await Storage.getKyFor(siteNumber, vendorId, today);
     if (ky) { showView(); } else { showFill(false); }
   } catch (e) { App.handleError(e, '読み込みに失敗しました'); }
@@ -166,13 +180,19 @@ function showFill(fromView) {
   if (!editing.hazards || !editing.hazards.length) editing.hazards = [newHazard(),newHazard(),newHazard()];
   if (!editing.quals || !editing.quals.length) editing.quals = [{qual:'',worker:''},{qual:'',worker:''},{qual:'',worker:''}];
   document.getElementById('f-work').value = editing.workContent || '';
-  document.getElementById('f-inst').value = editing.instructions || '';
+  document.getElementById('f-inst-view').textContent = adminInstruction || '（管理者による指示事項は未入力）';
   document.getElementById('f-goal').value = editing.actionGoal || '';
   document.getElementById('f-company').value = editing.companyName || vendorName;
+  document.getElementById('f-foreman-name').value = (editing.foreman && editing.foreman.name) || '';
   document.getElementById('fill-cancel').style.display = ky ? '' : 'none';
   renderHazards(); renderQuals();
   show('screen-fill');
+  // 職長署名パッド（画面表示後に初期化）
+  if (!foremanPad) foremanPad = new SignaturePad(document.getElementById('foreman-canvas'), { lineWidth: 3 });
+  foremanPad.clear();
+  if (editing.foreman && editing.foreman.signature) foremanPad.fromDataURL(editing.foreman.signature);
 }
+function clearForeman() { if (foremanPad) foremanPad.clear(); }
 let editing = null;
 function opt(cur) { return ['','○','△','×'].map(v => `<option value="${v}" ${v===cur?'selected':''}>${v||'―'}</option>`).join(''); }
 function renderHazards() {
@@ -207,10 +227,16 @@ function renderQuals() {
 function addQual() { editing.quals.push({qual:'',worker:''}); renderQuals(); }
 
 async function saveFill() {
+  const foremanName = document.getElementById('f-foreman-name').value.trim();
+  const foremanSig = foremanPad ? foremanPad.toDataURL() : null;
+  if (!foremanName) { App.toast('職長氏名を入力してください', 'warning'); return; }
+  if (!foremanSig)  { App.toast('職長の署名をしてください', 'warning'); return; }
+
   editing.workContent = document.getElementById('f-work').value;
-  editing.instructions = document.getElementById('f-inst').value;
+  editing.instructions = adminInstruction;  // 管理者入力の指示事項を記録に保存
   editing.actionGoal = document.getElementById('f-goal').value;
   editing.companyName = document.getElementById('f-company').value;
+  editing.foreman = { name: foremanName, signature: foremanSig };
   editing.hazards.forEach(h => { h.level = calcLevel(h.possibility,h.severity); h.levelAfter = calcLevel(h.possibilityAfter,h.severityAfter); h.judge = JUDGE[h.level]; });
   editing.siteNumber = siteNumber; editing.siteName = siteName; editing.vendorId = vendorId; editing.vendorName = vendorName; editing.date = today;
   App.loading(true);
@@ -238,6 +264,10 @@ function showView() {
   const quals = (ky.quals||[]).filter(q=>q.qual||q.worker);
   document.getElementById('v-qual-card').style.display = quals.length ? '' : 'none';
   document.getElementById('v-quals').innerHTML = quals.map(q=>`${App.escHtml(q.qual)}：${App.escHtml(q.worker)}`).join('<br>');
+  const fm = ky.foreman;
+  document.getElementById('v-foreman').innerHTML = fm && fm.name
+    ? `<span class="signer">${App.escHtml(fm.name)}${fm.signature?`<img src="${fm.signature}">`:''}</span>`
+    : '<span class="hint">未登録</span>';
   renderSigners();
   show('screen-view');
 }

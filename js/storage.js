@@ -362,5 +362,14 @@ const Storage = {
     return API.ky('signKy', { siteNumber, vendorId, date, worker });
   },
   // 管理者（ログイン）：閲覧・削除
-  async deleteKy(id, siteNumber){ await API.admin('deleteKy', { id, siteNumber }); }
+  async deleteKy(id, siteNumber){ await API.admin('deleteKy', { id, siteNumber }); },
+
+  // 大西熱学からの指示事項（現場ごと・管理者が前もって入力）
+  async getKyInstruction(siteNumber) {
+    const rows = await DB.get('ky_instructions', `?site_number=eq.${encodeURIComponent(siteNumber)}`);
+    return rows[0] ? rows[0].instructions : '';
+  },
+  async saveKyInstruction(siteNumber, instructions) {
+    await API.admin('saveKyInstruction', { siteNumber, instructions });
+  }
 };
