@@ -150,6 +150,19 @@ const API = {
       throw new Error(err.error || `HTTP ${res.status}`);
     }
     return res.json();
+  },
+  // KY（匿名・現場QRから）
+  async ky(action, data) {
+    const res = await fetch(`${EDGE_BASE}/ky-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   }
 };
 
@@ -330,7 +343,8 @@ const Storage = {
     await API.inspect('saveInspection', { inspection });
   },
 
-  // ---- KY（危険予知活動表） ----
+  // ---- KY（危険予知活動表・業者ごと・現場QR匿名運用） ----
+  kyId(siteNumber, vendorId, dateStr) { return `${siteNumber}_${vendorId}_${dateStr}`; },
   async getKyList(siteNumber) {
     return DB.get('ky_records',
       `?site_number=eq.${encodeURIComponent(siteNumber)}&order=date.desc`);
@@ -339,6 +353,14 @@ const Storage = {
     const rows = await DB.get('ky_records', `?id=eq.${encodeURIComponent(id)}`);
     return rows[0] ? rows[0].data : null;
   },
-  async saveKy(ky)              { await API.admin('saveKy', { ky }); },
+  async getKyFor(siteNumber, vendorId, dateStr) {
+    return this.getKy(this.kyId(siteNumber, vendorId, dateStr));
+  },
+  // 職人（匿名・QR）：職長が記入、作業員が署名
+  async saveKyWorker(ky)            { return API.ky('saveKy', { ky }); },
+  async signKy(siteNumber, vendorId, date, worker) {
+    return API.ky('signKy', { siteNumber, vendorId, date, worker });
+  },
+  // 管理者（ログイン）：閲覧・削除
   async deleteKy(id, siteNumber){ await API.admin('deleteKy', { id, siteNumber }); }
 };

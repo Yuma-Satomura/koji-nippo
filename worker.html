@@ -161,6 +161,13 @@
             <p>次回の日付・予定人数・作業内容を事前登録します</p>
           </div>
         </button>
+        <button class="mode-btn" onclick="goKy()" style="border-top:1px solid #eef2f7;">
+          <div class="mode-icon">⚠️</div>
+          <div class="mode-text">
+            <h3>KY（危険予知）</h3>
+            <p>職長が記入し、作業員が内容確認・署名します</p>
+          </div>
+        </button>
       </div>
       <div class="worker-nav">
         <button class="btn btn-secondary" onclick="showScreen('screen-vendor')">← 戻る</button>
@@ -472,6 +479,15 @@ function showModeSelect() {
 }
 
 // ---- 今日モード開始 ----
+function goKy() {
+  if (!selectedVendor) return;
+  const q = 'site=' + encodeURIComponent(currentSite.number)
+    + '&vendor=' + encodeURIComponent(selectedVendor.id)
+    + '&vname=' + encodeURIComponent(selectedVendor.name)
+    + (DEMO ? '&demo=1' : '');
+  location.href = 'ky-worker.html?' + q;
+}
+
 async function startToday() {
   // 今日の日報から前回登録データを読み込んで自動入力
   const report = await Storage.getReport(currentSite.number, today);

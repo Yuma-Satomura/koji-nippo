@@ -41,7 +41,9 @@
   </div>
 
   <div id="ky-ui" style="display:none;">
-    <button class="btn btn-primary" style="width:100%; margin-bottom:14px;" onclick="createNew()">＋ 新しいKYを作成</button>
+    <div class="card" style="background:#eef2ff; border-color:#c7d2fe;">
+      <div style="font-size:13px; color:#1e40af;">KYは現場のQRから、業者ごとに職長が記入し作業員が署名します。ここでは閲覧とPDF出力ができます。</div>
+    </div>
     <div class="card">
       <h2 style="font-size:15px; margin:0 0 12px; color:#1e40af;">この現場のKY記録</h2>
       <div id="ky-list"><div class="empty">読み込み中…</div></div>
@@ -54,9 +56,13 @@
 <script src="js/storage.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="js/pdf.js"></script>
 <script>
 if (!Auth.requireAuth()) { /* redirect */ }
 let currentSite = null;
+let kyRows = [];
 
 async function init() {
   App.loading(true);
@@ -81,27 +87,34 @@ function maxRisk(d) {
 }
 
 async function render() {
-  const list = await Storage.getKyList(currentSite.number);
+  kyRows = await Storage.getKyList(currentSite.number);
   const el = document.getElementById('ky-list');
-  if (!list.length) { el.innerHTML = '<div class="empty">まだKY記録がありません</div>'; return; }
-  el.innerHTML = list.map(row => {
+  if (!kyRows.length) { el.innerHTML = '<div class="empty">まだKY記録がありません</div>'; return; }
+  el.innerHTML = kyRows.map((row, i) => {
     const d = row.data || {};
     const r = maxRisk(d);
+    const signs = (d.workers || []).length;
     return `
     <div class="ky-item">
       <div style="min-width:0;">
-        <div class="ky-date">${App.escHtml(row.date)} ${r ? `<span class="risk r${r}">最大危険度 ${r}</span>` : ''}</div>
-        <div class="ky-sub">${App.escHtml(d.workContent || '（作業内容未記入）')}</div>
+        <div class="ky-date">${App.escHtml(row.date)} ${App.escHtml(d.vendorName || '')} ${r ? `<span class="risk r${r}">最大危険度 ${r}</span>` : ''}</div>
+        <div class="ky-sub">${App.escHtml(d.workContent || '（作業内容未記入）')}　署名${signs}名</div>
       </div>
       <div class="ky-actions">
-        <a class="btn btn-ghost btn-sm" href="ky-edit.html?id=${encodeURIComponent(row.id)}">開く</a>
+        <button class="btn btn-ghost btn-sm" onclick="pdf(${i})">PDF</button>
         <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="del('${row.id}','${App.escHtml(row.date)}')">削除</button>
       </div>
     </div>`;
   }).join('');
 }
 
-function createNew() { location.href = 'ky-edit.html?new=1'; }
+async function pdf(i) {
+  const row = kyRows[i]; if (!row) return;
+  App.loading(true);
+  try { await PdfExport.generateKyPDF(row.data || {}); }
+  catch (e) { App.handleError(e, 'PDF出力に失敗しました'); }
+  finally { App.loading(false); }
+}
 
 async function del(id, date) {
   if (!confirm(date + ' のKYを削除しますか？')) return;

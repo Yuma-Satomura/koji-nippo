@@ -240,6 +240,7 @@ td.c { text-align:center; } td.sm { font-size:7.5pt; }
 <div class="top">
   <div>${App.formatDate(ky.date)}</div>
   <div>工事名：${this._esc(ky.siteName || '')}（${this._esc(ky.siteNumber || '')}）</div>
+  <div>業者：${this._esc(ky.vendorName || '')}</div>
 </div>
 <div class="box"><label>作業内容</label><div class="v">${this._esc(ky.workContent)}</div></div>
 <div class="box"><label>大西熱学からの指示事項（安全・作業）</label><div class="v">${this._esc(ky.instructions)}</div></div>
