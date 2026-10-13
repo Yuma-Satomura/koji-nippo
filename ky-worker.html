@@ -87,6 +87,7 @@
     </div>
     <button class="btn btn-primary btn-xl" onclick="showSign()">✍️ 内容を確認して署名する</button>
     <button class="btn btn-secondary btn-xl" style="margin-top:8px;" onclick="showFill(true)">内容を編集（職長）</button>
+    <button class="btn btn-worker-primary btn-xl" style="margin-top:8px; background:#15803d;" onclick="goReport()">📝 日報の入力へ進む（職長）→</button>
   </div>
 
   <!-- 署名入力 -->
@@ -251,6 +252,15 @@ function showSign() {
   sigPad.clear();
   document.getElementById('sg-name').value = '';
 }
+function goReport() {
+  const q = 'site=' + encodeURIComponent(siteNumber)
+    + '&vendor=' + encodeURIComponent(vendorId)
+    + '&vname=' + encodeURIComponent(vendorName)
+    + '&start=today'
+    + (new URLSearchParams(location.search).has('demo') ? '&demo=1' : '');
+  location.href = 'worker.html?' + q;
+}
+
 function clearSig() { if (sigPad) sigPad.clear(); }
 async function submitSign() {
   const name = document.getElementById('sg-name').value.trim();

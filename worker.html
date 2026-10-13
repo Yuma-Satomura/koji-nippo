@@ -433,6 +433,18 @@ async function init() {
     await loadVendors();
     initSig();
     initNextDateLabels();
+
+    // KYから引き継いで業者直行（?vendor=...&start=today）
+    const vParam = params.get('vendor');
+    if (vParam) {
+      const vendors = await Storage.getVendors(currentSite.number);
+      const v = vendors.find(x => x.id === vParam);
+      if (v) {
+        selectedVendor = v;
+        if (params.get('start') === 'today') { await startToday(); }
+        else { showModeSelect(); }
+      }
+    }
   } finally {
     App.loading(false);
   }
@@ -511,6 +523,17 @@ async function startToday() {
     document.getElementById('today-fire-check').checked = todayFire;
     document.getElementById('today-fire-toggle').classList.toggle('active', todayFire);
   }
+
+  // KY（本日・この業者）があれば作業内容を反映（KYを優先）
+  try {
+    const ky = await Storage.getKyFor(currentSite.number, selectedVendor.id, today);
+    if (ky && ky.workContent) {
+      document.getElementById('today-work').value = ky.workContent;
+      preloaded = true;
+      const note = document.getElementById('today-preload-note');
+      if (note) note.textContent = '📋 KYの作業内容を反映しました。確認・修正してください。';
+    }
+  } catch (e) { /* KY連動は任意。失敗しても日報入力は続行 */ }
 
   document.getElementById('today-workers-disp').textContent = todayWorkers;
   document.getElementById('today-vehicles-disp').textContent = todayVehicles;
