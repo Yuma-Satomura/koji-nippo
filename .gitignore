@@ -1,2 +1,6 @@
 .vercel
 node_modules
+.vscode
+
+# 非公開の資料置き場（予算Excel等。Gitで追跡せず公開されない）
+/private/

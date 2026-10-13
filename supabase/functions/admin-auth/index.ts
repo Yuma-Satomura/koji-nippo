@@ -113,6 +113,14 @@ Deno.serve(async (req: Request) => {
         if (data.vendors) await supabase.from('nippo_vendors').upsert(data.vendors as object[]);
         if (data.reports) await supabase.from('nippo_reports').upsert(data.reports as object[]);
         break;
+      case 'saveEquipment':
+        if (!isAdmin) return forbidden();
+        await supabase.from('equipment').upsert(data);
+        break;
+      case 'deleteEquipment':
+        if (!isAdmin) return forbidden();
+        await supabase.from('equipment').delete().eq('id', data.id);
+        break;
       default:
         return json({ error: 'Unknown action' }, 400);
     }

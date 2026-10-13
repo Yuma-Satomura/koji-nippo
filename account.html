@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>アカウント設定</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.account-wrap { max-width: 480px; margin: 0 auto; padding: 16px; }
+.card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; margin-bottom:16px; }
+.card h2 { font-size:15px; margin:0 0 14px; color:#1e40af; }
+.row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f1f5f9; font-size:14px; }
+.row:last-child { border-bottom:0; }
+.row .k { color:#64748b; }
+.row .v { font-weight:600; }
+.field { margin-bottom:12px; }
+.field label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:5px; }
+.field input { width:100%; box-sizing:border-box; padding:11px 13px; font-size:16px; border:1.5px solid #cbd5e1; border-radius:9px; }
+.field input:focus { outline:none; border-color:#1e40af; }
+.msg { font-size:13px; margin:6px 0 10px; display:none; }
+.msg.err { color:#dc2626; }
+.msg.ok { color:#059669; }
+.role-badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:700; }
+.role-admin { background:#dbeafe; color:#1e40af; }
+.role-member { background:#f1f5f9; color:#475569; }
+</style>
+</head>
+<body>
+<div class="app-header">
+  <div class="header-inner">
+    <a href="list.html" class="btn btn-ghost btn-sm">← 戻る</a>
+    <div class="header-title">アカウント設定</div>
+    <button class="btn btn-ghost btn-sm" onclick="App.logout()">ログアウト</button>
+  </div>
+</div>
+
+<div class="account-wrap">
+  <div class="card">
+    <h2>プロフィール</h2>
+    <div class="row"><span class="k">氏名</span><span class="v" id="p-name">—</span></div>
+    <div class="row"><span class="k">メール</span><span class="v" id="p-email">—</span></div>
+    <div class="row"><span class="k">役割</span><span class="v" id="p-role">—</span></div>
+  </div>
+
+  <div class="card">
+    <h2>パスワード変更</h2>
+    <div class="field">
+      <label for="pw1">新しいパスワード（6文字以上）</label>
+      <input type="password" id="pw1" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label for="pw2">新しいパスワード（確認）</label>
+      <input type="password" id="pw2" autocomplete="new-password">
+    </div>
+    <div class="msg err" id="pw-err"></div>
+    <div class="msg ok" id="pw-ok"></div>
+    <button class="btn btn-primary" style="width:100%;" id="pw-btn" onclick="changePw()">変更する</button>
+  </div>
+</div>
+
+<div id="page-loading" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:9998;align-items:center;justify-content:center;"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) { /* redirect */ }
+
+function init() {
+  const u = Auth.user() || {};
+  document.getElementById('p-name').textContent = u.name || '—';
+  document.getElementById('p-email').textContent = u.email || '—';
+  const roleEl = document.getElementById('p-role');
+  const isAdmin = u.role === 'admin';
+  roleEl.innerHTML = '<span class="role-badge ' + (isAdmin ? 'role-admin' : 'role-member') + '">'
+    + (isAdmin ? '管理者' : '担当者') + '</span>';
+}
+
+async function changePw() {
+  const pw1 = document.getElementById('pw1').value;
+  const pw2 = document.getElementById('pw2').value;
+  const err = document.getElementById('pw-err');
+  const ok = document.getElementById('pw-ok');
+  err.style.display = 'none'; ok.style.display = 'none';
+
+  if (pw1.length < 6) { err.textContent = 'パスワードは6文字以上にしてください'; err.style.display = ''; return; }
+  if (pw1 !== pw2)    { err.textContent = '確認用パスワードが一致しません'; err.style.display = ''; return; }
+
+  const btn = document.getElementById('pw-btn');
+  btn.disabled = true;
+  App.loading(true);
+  const result = await Auth.changePassword(pw1);
+  App.loading(false);
+  btn.disabled = false;
+
+  if (result.ok) {
+    ok.textContent = 'パスワードを変更しました';
+    ok.style.display = '';
+    document.getElementById('pw1').value = '';
+    document.getElementById('pw2').value = '';
+  } else {
+    err.textContent = result.error;
+    err.style.display = '';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

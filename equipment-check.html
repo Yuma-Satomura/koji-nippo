@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>機械点検</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.chk-wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
+.eq-head { background:linear-gradient(135deg,#1e3a8a,#1e40af); color:#fff; border-radius:14px; padding:18px; margin-bottom:16px; }
+.eq-head .n { font-size:20px; font-weight:800; }
+.eq-head .k { font-size:13px; opacity:.85; margin-top:3px; }
+.card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; margin-bottom:14px; }
+.item { padding:12px 0; border-bottom:1px solid #f1f5f9; }
+.item:last-child { border-bottom:0; }
+.item .label { font-size:14px; font-weight:600; margin-bottom:8px; }
+.opts { display:flex; gap:8px; }
+.opt { flex:1; text-align:center; padding:9px 0; border:1.5px solid #cbd5e1; border-radius:9px; font-size:14px; font-weight:600; cursor:pointer; user-select:none; color:#475569; }
+.opt.sel-good { background:#dcfce7; border-color:#16a34a; color:#15803d; }
+.opt.sel-warn { background:#fef9c3; border-color:#ca8a04; color:#a16207; }
+.opt.sel-bad  { background:#fee2e2; border-color:#dc2626; color:#b91c1c; }
+.field { margin-bottom:12px; }
+.field label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:5px; }
+.field input, .field textarea { width:100%; box-sizing:border-box; padding:11px 13px; font-size:16px; border:1.5px solid #cbd5e1; border-radius:9px; }
+.overall { display:flex; gap:10px; }
+.overall .opt { padding:13px 0; font-size:15px; }
+.done-screen { text-align:center; padding:48px 16px; display:none; }
+.done-screen .ico { font-size:56px; }
+.notice { background:#fef3c7; color:#92400e; border-radius:9px; padding:10px 12px; font-size:13px; margin-bottom:14px; display:none; }
+</style>
+</head>
+<body>
+<div class="chk-wrap" id="main" style="display:none;">
+  <div class="eq-head">
+    <div class="n" id="eq-name">—</div>
+    <div class="k" id="eq-kind">—</div>
+  </div>
+
+  <div class="notice" id="today-notice">本日はすでに点検記録があります。上書き保存されます。</div>
+
+  <div class="card">
+    <div class="field">
+      <label for="inspector">点検者名 <span style="color:#dc2626">*</span></label>
+      <input type="text" id="inspector" placeholder="氏名">
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="idate">点検日</label>
+      <input type="date" id="idate">
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700; margin-bottom:6px;">始業前点検</div>
+    <div id="items"></div>
+  </div>
+
+  <div class="card">
+    <div class="field" style="margin-bottom:12px;">
+      <label>総合判定 <span style="color:#dc2626">*</span></label>
+      <div class="overall">
+        <div class="opt" data-overall="使用可"  onclick="setOverall('使用可')">使用可</div>
+        <div class="opt" data-overall="使用不可" onclick="setOverall('使用不可')">使用不可</div>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="memo">特記事項</label>
+      <textarea id="memo" rows="2" placeholder="異常箇所・処置など"></textarea>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" style="width:100%; padding:14px; font-size:16px;" onclick="submit()">点検を記録する</button>
+</div>
+
+<div class="done-screen" id="done">
+  <div class="ico">✅</div>
+  <div style="font-size:20px; font-weight:800; margin-top:10px;">点検を記録しました</div>
+  <div style="color:#64748b; margin-top:6px;" id="done-sub"></div>
+</div>
+
+<div id="error-screen" style="display:none; text-align:center; padding:48px 16px; color:#64748b;">
+  QRコードが正しくありません。<br>機械・重機のQRを読み取ってください。
+</div>
+
+<div id="page-loading" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:9998;align-items:center;justify-content:center;"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+<script>
+const ITEMS = [
+  { key:'engine',  label:'エンジン始動・異音' },
+  { key:'fluids',  label:'油脂類（作動油・燃料・冷却水）の量・漏れ' },
+  { key:'running', label:'タイヤ／クローラ・足回り' },
+  { key:'brake',   label:'ブレーキ・操作レバー' },
+  { key:'safety',  label:'安全装置・警報（アウトリガー／過負荷等）' },
+  { key:'body',    label:'外観・損傷・ボルトゆるみ' },
+  { key:'lamp',    label:'灯火・方向指示・ミラー' }
+];
+
+const results = {};
+let overall = '';
+let equipment = null;
+const eqId = new URLSearchParams(location.search).get('eq');
+
+async function init() {
+  if (!eqId) { document.getElementById('error-screen').style.display = ''; return; }
+  App.loading(true);
+  try {
+    equipment = await Storage.getEquipmentItem(eqId);
+    if (!equipment) { document.getElementById('error-screen').style.display = ''; return; }
+    document.getElementById('eq-name').textContent = equipment.name;
+    document.getElementById('eq-kind').textContent =
+      (equipment.kind || '') + (equipment.site_number ? ' ・ 現場 ' + equipment.site_number : '');
+    document.getElementById('idate').value = App.today();
+
+    renderItems();
+
+    // 本日分があれば読み込んで上書き編集
+    const existing = await Storage.getInspection(eqId, App.today());
+    if (existing) {
+      document.getElementById('today-notice').style.display = '';
+      document.getElementById('inspector').value = existing.inspector || '';
+      document.getElementById('memo').value = existing.memo || '';
+      Object.entries(existing.items || {}).forEach(([k, v]) => setItem(k, v, true));
+      if (existing.overall) setOverall(existing.overall);
+    }
+    document.getElementById('main').style.display = '';
+  } catch (e) {
+    App.handleError(e, '読み込みに失敗しました');
+  } finally { App.loading(false); }
+}
+
+function renderItems() {
+  document.getElementById('items').innerHTML = ITEMS.map(it => `
+    <div class="item">
+      <div class="label">${App.escHtml(it.label)}</div>
+      <div class="opts">
+        <div class="opt" id="${it.key}-良"     onclick="setItem('${it.key}','良')">良</div>
+        <div class="opt" id="${it.key}-要注意" onclick="setItem('${it.key}','要注意')">要注意</div>
+        <div class="opt" id="${it.key}-不良"   onclick="setItem('${it.key}','不良')">不良</div>
+      </div>
+    </div>`).join('');
+}
+
+function setItem(key, val) {
+  results[key] = val;
+  ['良','要注意','不良'].forEach(v => {
+    const el = document.getElementById(key + '-' + v);
+    if (!el) return;
+    el.classList.remove('sel-good','sel-warn','sel-bad');
+    if (v === val) el.classList.add(v === '良' ? 'sel-good' : v === '要注意' ? 'sel-warn' : 'sel-bad');
+  });
+}
+
+function setOverall(val) {
+  overall = val;
+  document.querySelectorAll('[data-overall]').forEach(el => {
+    el.classList.remove('sel-good','sel-bad');
+    if (el.dataset.overall === val) el.classList.add(val === '使用可' ? 'sel-good' : 'sel-bad');
+  });
+}
+
+async function submit() {
+  const inspector = document.getElementById('inspector').value.trim();
+  if (!inspector) { App.toast('点検者名を入力してください', 'warning'); return; }
+  if (!overall)   { App.toast('総合判定を選んでください', 'warning'); return; }
+
+  const inspection = {
+    equipmentId: eqId,
+    equipmentName: equipment.name,
+    date: document.getElementById('idate').value || App.today(),
+    inspector,
+    items: results,
+    overall,
+    memo: document.getElementById('memo').value
+  };
+
+  App.loading(true);
+  try {
+    await Storage.saveInspection(inspection);
+    document.getElementById('main').style.display = 'none';
+    document.getElementById('done-sub').textContent = equipment.name + ' / ' + inspection.date;
+    document.getElementById('done').style.display = '';
+  } catch (e) {
+    App.handleError(e, '記録に失敗しました');
+  } finally { App.loading(false); }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>機械・重機管理</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.eq-wrap { max-width: 640px; margin: 0 auto; padding: 16px; }
+.card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:16px; }
+.card h2 { font-size:15px; margin:0 0 14px; color:#1e40af; }
+.field { margin-bottom:12px; }
+.field label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:5px; }
+.field input, .field select { width:100%; box-sizing:border-box; padding:11px 13px; font-size:16px; border:1.5px solid #cbd5e1; border-radius:9px; }
+.eq-item { display:flex; align-items:center; justify-content:space-between; padding:12px 4px; border-bottom:1px solid #f1f5f9; }
+.eq-item:last-child { border-bottom:0; }
+.eq-name { font-weight:700; }
+.eq-kind { font-size:12px; color:#64748b; }
+.eq-actions { display:flex; gap:6px; }
+.qr-modal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:9999; padding:16px; }
+.qr-box { background:#fff; border-radius:16px; padding:24px; text-align:center; max-width:340px; }
+.qr-box #qr { display:inline-block; margin:12px 0; }
+.empty { text-align:center; color:#94a3b8; padding:24px; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app-header">
+  <div class="header-inner">
+    <a href="list.html" class="btn btn-ghost btn-sm">← 戻る</a>
+    <div class="header-title">機械・重機管理</div>
+    <span style="width:60px;"></span>
+  </div>
+</div>
+
+<div class="eq-wrap">
+  <div class="card">
+    <h2 id="form-title">機械・重機を登録</h2>
+    <input type="hidden" id="edit-id">
+    <div class="field">
+      <label for="eq-name">名称 <span style="color:#dc2626">*</span></label>
+      <input type="text" id="eq-name" placeholder="例：高所作業車 No.3 / ユンボ 0.25">
+    </div>
+    <div class="field">
+      <label for="eq-kind">種別</label>
+      <select id="eq-kind">
+        <option value="高所作業車">高所作業車</option>
+        <option value="重機">重機</option>
+        <option value="車両">車両</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="eq-site">配置現場（任意）</label>
+      <select id="eq-site"><option value="">（未指定）</option></select>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveEq()">保存</button>
+      <button class="btn btn-ghost" id="cancel-btn" style="display:none;" onclick="resetForm()">キャンセル</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>登録済み一覧</h2>
+    <div id="eq-list"><div class="empty">読み込み中…</div></div>
+  </div>
+</div>
+
+<div class="qr-modal" id="qr-modal" onclick="if(event.target===this)closeQr()">
+  <div class="qr-box">
+    <div id="qr-title" style="font-weight:700; margin-bottom:4px;"></div>
+    <div style="font-size:12px; color:#64748b;">このQRを機械に貼り、点検時にスキャン</div>
+    <div id="qr"></div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-ghost" style="flex:1;" onclick="closeQr()">閉じる</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="printQr()">印刷</button>
+    </div>
+  </div>
+</div>
+
+<div id="page-loading" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:9998;align-items:center;justify-content:center;"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+if (!Auth.requireAuth()) { /* redirect */ }
+
+let qrUrl = '', qrName = '';
+
+async function init() {
+  if (!Auth.isAdmin()) {
+    document.querySelector('.eq-wrap').innerHTML =
+      '<div class="card"><div class="empty">この画面は管理者のみ利用できます。</div></div>';
+    return;
+  }
+  App.loading(true);
+  try {
+    const sites = await Storage.getSites();
+    const sel = document.getElementById('eq-site');
+    sites.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.number; o.textContent = '【' + s.number + '】' + s.name;
+      sel.appendChild(o);
+    });
+    await render();
+  } catch (e) { App.handleError(e, '読み込みに失敗しました'); }
+  finally { App.loading(false); }
+}
+
+async function render() {
+  const list = await Storage.getEquipment();
+  const el = document.getElementById('eq-list');
+  if (!list.length) { el.innerHTML = '<div class="empty">まだ登録がありません</div>'; return; }
+  el.innerHTML = list.map(e => `
+    <div class="eq-item">
+      <div>
+        <div class="eq-name">${App.escHtml(e.name)}</div>
+        <div class="eq-kind">${App.escHtml(e.kind || '')}${e.site_number ? ' ・ 現場 ' + App.escHtml(e.site_number) : ''}</div>
+      </div>
+      <div class="eq-actions">
+        <button class="btn btn-ghost btn-sm" onclick="showQr('${e.id}')">QR</button>
+        <button class="btn btn-ghost btn-sm" onclick="editEq('${e.id}')">編集</button>
+        <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="delEq('${e.id}','${App.escHtml(e.name)}')">削除</button>
+      </div>
+    </div>`).join('');
+}
+
+async function saveEq() {
+  const name = document.getElementById('eq-name').value.trim();
+  if (!name) { App.toast('名称を入力してください', 'warning'); return; }
+  const id = document.getElementById('edit-id').value || Storage.uuid();
+  const kind = document.getElementById('eq-kind').value;
+  const site_number = document.getElementById('eq-site').value || null;
+  App.loading(true);
+  try {
+    await Storage.saveEquipment({ id, name, kind, site_number });
+    App.toast('保存しました');
+    resetForm();
+    await render();
+  } catch (e) { App.handleError(e, '保存に失敗しました'); }
+  finally { App.loading(false); }
+}
+
+async function editEq(id) {
+  const e = await Storage.getEquipmentItem(id);
+  if (!e) return;
+  document.getElementById('edit-id').value = e.id;
+  document.getElementById('eq-name').value = e.name;
+  document.getElementById('eq-kind').value = e.kind || 'その他';
+  document.getElementById('eq-site').value = e.site_number || '';
+  document.getElementById('form-title').textContent = '機械・重機を編集';
+  document.getElementById('cancel-btn').style.display = '';
+  window.scrollTo(0, 0);
+}
+
+function resetForm() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('eq-name').value = '';
+  document.getElementById('eq-kind').value = '高所作業車';
+  document.getElementById('eq-site').value = '';
+  document.getElementById('form-title').textContent = '機械・重機を登録';
+  document.getElementById('cancel-btn').style.display = 'none';
+}
+
+async function delEq(id, name) {
+  if (!confirm(name + ' を削除しますか？\n（この機械の点検記録も削除されます）')) return;
+  App.loading(true);
+  try {
+    await Storage.deleteEquipment(id);
+    App.toast('削除しました');
+    await render();
+  } catch (e) { App.handleError(e, '削除に失敗しました'); }
+  finally { App.loading(false); }
+}
+
+function showQr(id) {
+  Storage.getEquipmentItem(id).then(eq => {
+    if (!eq) return;
+    qrName = eq.name;
+    qrUrl = location.origin + '/equipment-check.html?eq=' + encodeURIComponent(id);
+    document.getElementById('qr-title').textContent = eq.name;
+    const box = document.getElementById('qr');
+    box.innerHTML = '';
+    new QRCode(box, { text: qrUrl, width: 240, height: 240, colorDark: '#1e3a8a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    document.getElementById('qr-modal').style.display = 'flex';
+  });
+}
+
+function closeQr() { document.getElementById('qr-modal').style.display = 'none'; }
+
+function printQr() {
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>${App.escHtml(qrName)}</title></head>
+    <body style="text-align:center;font-family:sans-serif;padding:40px;">
+    <h2>${App.escHtml(qrName)}</h2>
+    <p style="color:#555;">点検時にこのQRをスキャン</p>
+    <div id="qr2"></div>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+    <script>new QRCode(document.getElementById('qr2'),{text:'${qrUrl}',width:300,height:300,colorDark:'#1e3a8a',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});setTimeout(()=>window.print(),800);<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+init();
+</script>
+</body>
+</html>

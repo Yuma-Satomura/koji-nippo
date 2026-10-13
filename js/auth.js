@@ -77,6 +77,24 @@ const Auth = {
     }
   },
 
+  // ログイン中の本人がパスワードを変更する
+  async changePassword(newPassword) {
+    const token = await this.getAccessToken();
+    if (!token) return { ok: false, error: 'ログインが必要です' };
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) return { ok: false, error: data.msg || 'パスワード変更に失敗しました' };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: '通信エラーが発生しました' };
+    }
+  },
+
   logout() { this._session = null; localStorage.removeItem(this.KEY); },
 
   requireAuth() {
