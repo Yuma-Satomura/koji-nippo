@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>高所作業車 始業前点検</title>
+<title>垂直昇降式高所作業車 作業開始前点検</title>
 <link rel="stylesheet" href="css/style.css">
 <style>
 .chk-wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
@@ -54,8 +54,8 @@
   </div>
 
   <div class="card">
-    <div style="font-weight:700; margin-bottom:2px;">始業前点検</div>
-    <div class="bulk"><button type="button" onclick="allGood()">すべて「良」</button></div>
+    <div style="font-weight:700; margin-bottom:2px;">作業開始前点検</div>
+    <div class="bulk"><button type="button" onclick="allGood()">すべて「異常なし」</button></div>
     <div id="items"></div>
   </div>
 
@@ -91,12 +91,47 @@
 <script src="js/storage.js"></script>
 <script src="js/app.js"></script>
 <script>
-// 高所作業車 始業前点検表（その１）の項目を反映
+// 垂直昇降式高所作業車 作業開始前点検表（Sheet1）の項目を反映
+// チェック記号：○異常なし／△要修理／×不良
+const OPTS = [
+  { v: '異常なし', cls: 'sel-good' },
+  { v: '要修理',   cls: 'sel-warn' },
+  { v: '不良',     cls: 'sel-bad'  }
+];
 const GROUPS = [
-  { group: '走行部',   items: ['ブレーキ', '駐車ブレーキ', 'クラッチ', 'タイヤ'] },
-  { group: '作業装置', items: ['操作装置', 'ブーム', '本体', '各配線', '作業床', '手摺の破損', 'ボルト・ピン緩み'] },
-  { group: '安全装置', items: ['警報装置', '照明'] },
-  { group: 'その他',   items: ['エンジンオイル', '清掃状況'] }
+  { group: '持込・届出', items: [
+    '特定自主検査標章の有無及び期限の確認',
+    '制限荷重・使用会社名・取扱者表示の有無',
+    '持込機械等の届けをしてあるか',
+    '資格証の携帯を確認（10m以上：技能講習／10m未満：特別教育）'
+  ]},
+  { group: '外観・機体', items: [
+    'タイヤ（又はキャタピラ）の状態・空気圧・取付はよいか',
+    '各所のボルトに弛み・脱落は無いか',
+    '作業床に損傷・隙間は無いか。手摺に損傷は無いか',
+    '各配線・油圧系統に異常は無いか',
+    '外部から確認して油漏れはないか（停止場所の床確認）'
+  ]},
+  { group: 'エンジン', items: [
+    'エンジン（又はモーター）の具合（排気・音）はよいか',
+    'エンジンの潤滑・冷却・燃料・バッテリーに異常はないか',
+    '油漏れ・液漏れはないか',
+    '油圧装置に異常はないか'
+  ]},
+  { group: '安全装置', items: [
+    '計器類の作動・点灯はよいか',
+    '誤作動防止（ペダルフード・レバーガード）はよいか',
+    '安全装置（非常停止・傾斜防止・タッチセンサー・警報等）に異常は無いか'
+  ]},
+  { group: '設置・操作走行・他', items: [
+    '操作レバーは正常に動くか',
+    '走行面は水平堅固・油等で滑り易い状態ではないか',
+    'アームの動作・形状は正常か',
+    '作業床上で使用する安全帯は着用したか',
+    '積載荷重を超えるような荷を作業床に積んでいないか',
+    '走行系統（ブレーキ、クラッチ）に異常は無いか',
+    '長物の荷を扱う際は専用台を設置しているか'
+  ]}
 ];
 const ALL_ITEMS = GROUPS.flatMap(g => g.items);
 
@@ -133,38 +168,46 @@ async function init() {
       document.getElementById('today-notice').style.display = '';
       document.getElementById('inspector').value = existing.inspector || '';
       document.getElementById('memo').value = existing.memo || '';
-      Object.entries(existing.items || {}).forEach(([k, v]) => setItem(k, v));
+      // 保存は項目名キー → 画面のインデックスキーへ対応付け
+      const labelToKey = {};
+      GROUPS.forEach((g, gi) => g.items.forEach((label, ii) => { labelToKey[label] = gi + '_' + ii; }));
+      Object.entries(existing.items || {}).forEach(([label, v]) => {
+        const k = labelToKey[label];
+        if (k) setItem(k, v);
+      });
       if (existing.overall) setOverall(existing.overall);
     }
   } catch (e) { /* 履歴は任意。無視してフォームは使える */ }
 }
 
 function renderItems() {
-  document.getElementById('items').innerHTML = GROUPS.map(g => `
+  document.getElementById('items').innerHTML = GROUPS.map((g, gi) => `
     <div class="group-h">${App.escHtml(g.group)}</div>
-    ${g.items.map(label => `
+    ${g.items.map((label, ii) => {
+      const key = gi + '_' + ii;
+      return `
       <div class="item">
         <div class="label">${App.escHtml(label)}</div>
         <div class="opts">
-          <div class="opt" data-k="${App.escHtml(label)}" data-v="良"     onclick="setItem('${App.escHtml(label)}','良')">良</div>
-          <div class="opt" data-k="${App.escHtml(label)}" data-v="要注意" onclick="setItem('${App.escHtml(label)}','要注意')">要注意</div>
-          <div class="opt" data-k="${App.escHtml(label)}" data-v="不良"   onclick="setItem('${App.escHtml(label)}','不良')">不良</div>
+          ${OPTS.map(o => `<div class="opt" data-k="${key}" data-v="${o.v}" onclick="setItem('${key}','${o.v}')">${o.v}</div>`).join('')}
         </div>
-      </div>`).join('')}
+      </div>`;
+    }).join('')}
   `).join('');
 }
 
 function setItem(key, val) {
   results[key] = val;
+  const opt = OPTS.find(o => o.v === val);
   document.querySelectorAll(`.opt[data-k="${CSS.escape(key)}"]`).forEach(el => {
     el.classList.remove('sel-good', 'sel-warn', 'sel-bad');
-    if (el.dataset.v === val) {
-      el.classList.add(val === '良' ? 'sel-good' : val === '要注意' ? 'sel-warn' : 'sel-bad');
-    }
+    if (el.dataset.v === val && opt) el.classList.add(opt.cls);
   });
 }
 
-function allGood() { ALL_ITEMS.forEach(label => setItem(label, '良')); }
+function allGood() {
+  GROUPS.forEach((g, gi) => g.items.forEach((_, ii) => setItem(gi + '_' + ii, '異常なし')));
+}
 
 function setOverall(val) {
   overall = val;
@@ -179,12 +222,19 @@ async function submit() {
   if (!inspector) { App.toast('点検者名を入力してください', 'warning'); return; }
   if (!overall)   { App.toast('総合判定を選んでください', 'warning'); return; }
 
+  // 画面のインデックスキー → 項目名キーに変換して保存（記録を自己説明的にする）
+  const itemsLabeled = {};
+  GROUPS.forEach((g, gi) => g.items.forEach((label, ii) => {
+    const r = results[gi + '_' + ii];
+    if (r) itemsLabeled[label] = r;
+  }));
+
   const inspection = {
     equipmentId: eqId,
     equipmentName: equipment.name,
     date: document.getElementById('idate').value || App.today(),
     inspector,
-    items: results,
+    items: itemsLabeled,
     overall,
     memo: document.getElementById('memo').value
   };
