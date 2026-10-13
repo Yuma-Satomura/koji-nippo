@@ -302,9 +302,12 @@ const Storage = {
   },
 
   // ---- 機械・重機マスタ ----
-  async getEquipment() {
+  async getEquipment(siteNumber) {
     if (DEMO) return [];
-    return DB.get('equipment', '?order=created_at.asc');
+    const q = siteNumber
+      ? `?site_number=eq.${encodeURIComponent(siteNumber)}&order=created_at.asc`
+      : '?order=created_at.asc';
+    return DB.get('equipment', q);
   },
   async getEquipmentItem(id) {
     const rows = await DB.get('equipment', `?id=eq.${encodeURIComponent(id)}`);

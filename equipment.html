@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/style.css">
 <style>
 .eq-wrap { max-width: 640px; margin: 0 auto; padding: 16px; }
+.site-banner { background:#eef2ff; border:1px solid #c7d2fe; color:#1e40af; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-weight:700; font-size:14px; }
 .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:16px; }
 .card h2 { font-size:15px; margin:0 0 14px; color:#1e40af; }
 .field { margin-bottom:12px; }
@@ -33,35 +34,42 @@
 </div>
 
 <div class="eq-wrap">
-  <div class="card">
-    <h2 id="form-title">機械・重機を登録</h2>
-    <input type="hidden" id="edit-id">
-    <div class="field">
-      <label for="eq-name">名称 <span style="color:#dc2626">*</span></label>
-      <input type="text" id="eq-name" placeholder="例：高所作業車 No.3 / ユンボ 0.25">
-    </div>
-    <div class="field">
-      <label for="eq-kind">種別</label>
-      <select id="eq-kind">
-        <option value="高所作業車">高所作業車</option>
-        <option value="重機">重機</option>
-        <option value="車両">車両</option>
-        <option value="その他">その他</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="eq-site">配置現場（任意）</label>
-      <select id="eq-site"><option value="">（未指定）</option></select>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <button class="btn btn-primary" style="flex:1;" onclick="saveEq()">保存</button>
-      <button class="btn btn-ghost" id="cancel-btn" style="display:none;" onclick="resetForm()">キャンセル</button>
-    </div>
+  <div class="site-banner" id="site-banner">現場を読み込み中…</div>
+
+  <div id="no-site" style="display:none;">
+    <div class="card"><div class="empty">
+      先に現場を選択してください。<br><br>
+      <a href="genba.html" class="btn btn-primary btn-sm">現場管理へ</a>
+    </div></div>
   </div>
 
-  <div class="card">
-    <h2>登録済み一覧</h2>
-    <div id="eq-list"><div class="empty">読み込み中…</div></div>
+  <div id="eq-ui" style="display:none;">
+    <div class="card">
+      <h2 id="form-title">機械・重機を登録</h2>
+      <input type="hidden" id="edit-id">
+      <div class="field">
+        <label for="eq-name">名称 <span style="color:#dc2626">*</span></label>
+        <input type="text" id="eq-name" placeholder="例：高所作業車 No.3 / ユンボ 0.25">
+      </div>
+      <div class="field">
+        <label for="eq-kind">種別</label>
+        <select id="eq-kind">
+          <option value="高所作業車">高所作業車</option>
+          <option value="重機">重機</option>
+          <option value="車両">車両</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="saveEq()">保存</button>
+        <button class="btn btn-ghost" id="cancel-btn" style="display:none;" onclick="resetForm()">キャンセル</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>この現場の機械・重機</h2>
+      <div id="eq-list"><div class="empty">読み込み中…</div></div>
+    </div>
   </div>
 </div>
 
@@ -87,6 +95,7 @@
 if (!Auth.requireAuth()) { /* redirect */ }
 
 let qrUrl = '', qrName = '';
+let currentSite = null;
 
 async function init() {
   if (!Auth.isAdmin()) {
@@ -96,27 +105,29 @@ async function init() {
   }
   App.loading(true);
   try {
-    const sites = await Storage.getSites();
-    const sel = document.getElementById('eq-site');
-    sites.forEach(s => {
-      const o = document.createElement('option');
-      o.value = s.number; o.textContent = '【' + s.number + '】' + s.name;
-      sel.appendChild(o);
-    });
+    currentSite = await Storage.getActiveSite();
+    if (!currentSite) {
+      document.getElementById('site-banner').style.display = 'none';
+      document.getElementById('no-site').style.display = '';
+      return;
+    }
+    document.getElementById('site-banner').textContent =
+      '現場：【' + currentSite.number + '】' + currentSite.name;
+    document.getElementById('eq-ui').style.display = '';
     await render();
   } catch (e) { App.handleError(e, '読み込みに失敗しました'); }
   finally { App.loading(false); }
 }
 
 async function render() {
-  const list = await Storage.getEquipment();
+  const list = await Storage.getEquipment(currentSite.number);
   const el = document.getElementById('eq-list');
-  if (!list.length) { el.innerHTML = '<div class="empty">まだ登録がありません</div>'; return; }
+  if (!list.length) { el.innerHTML = '<div class="empty">この現場にはまだ登録がありません</div>'; return; }
   el.innerHTML = list.map(e => `
     <div class="eq-item">
       <div>
         <div class="eq-name">${App.escHtml(e.name)}</div>
-        <div class="eq-kind">${App.escHtml(e.kind || '')}${e.site_number ? ' ・ 現場 ' + App.escHtml(e.site_number) : ''}</div>
+        <div class="eq-kind">${App.escHtml(e.kind || '')}</div>
       </div>
       <div class="eq-actions">
         <button class="btn btn-ghost btn-sm" onclick="showQr('${e.id}')">QR</button>
@@ -132,7 +143,7 @@ async function saveEq() {
   if (!name) { App.toast('名称を入力してください', 'warning'); return; }
   const id = document.getElementById('edit-id').value || Storage.uuid();
   const kind = document.getElementById('eq-kind').value;
-  const site_number = document.getElementById('eq-site').value || null;
+  const site_number = currentSite.number;  // 選択中の現場に自動で紐づけ
   App.loading(true);
   try {
     await Storage.saveEquipment({ id, name, kind, site_number });
@@ -149,7 +160,6 @@ async function editEq(id) {
   document.getElementById('edit-id').value = e.id;
   document.getElementById('eq-name').value = e.name;
   document.getElementById('eq-kind').value = e.kind || 'その他';
-  document.getElementById('eq-site').value = e.site_number || '';
   document.getElementById('form-title').textContent = '機械・重機を編集';
   document.getElementById('cancel-btn').style.display = '';
   window.scrollTo(0, 0);
@@ -159,7 +169,6 @@ function resetForm() {
   document.getElementById('edit-id').value = '';
   document.getElementById('eq-name').value = '';
   document.getElementById('eq-kind').value = '高所作業車';
-  document.getElementById('eq-site').value = '';
   document.getElementById('form-title').textContent = '機械・重機を登録';
   document.getElementById('cancel-btn').style.display = 'none';
 }
