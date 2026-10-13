@@ -132,6 +132,7 @@ const vendorName = params.get('vname') || '';
 const today = App.today();
 let ky = null;
 let sigPad = null;
+let siteName = '';  // 登録現場の工事名（現場ごと）
 
 function show(id) { ['screen-fill','screen-view','screen-sign','screen-done','screen-error'].forEach(s => document.getElementById(s).style.display = s === id ? '' : 'none'); }
 
@@ -141,7 +142,8 @@ async function init() {
   try {
     const sites = await Storage.getSites();
     const site = sites.find(s => s.number === siteNumber);
-    document.getElementById('h-site').textContent = '【' + siteNumber + '】' + (site ? site.name : '');
+    siteName = site ? site.name : '';
+    document.getElementById('h-site').textContent = '【' + siteNumber + '】' + siteName;
     document.getElementById('h-vendor').textContent = vendorName;
     document.getElementById('h-date').textContent = App.formatDate(today);
 
@@ -153,7 +155,7 @@ async function init() {
 
 function newHazard() { return { hazard:'', possibility:'', severity:'', measure:'', possibilityAfter:'', severityAfter:'' }; }
 function blankKy() {
-  return { siteNumber, vendorId, vendorName, date: today, workContent:'', instructions:'', actionGoal:'', companyName: vendorName,
+  return { siteNumber, siteName, vendorId, vendorName, date: today, workContent:'', instructions:'', actionGoal:'', companyName: vendorName,
     hazards:[newHazard(),newHazard(),newHazard()], quals:[{qual:'',worker:''},{qual:'',worker:''},{qual:'',worker:''}], workers:[] };
 }
 
@@ -210,7 +212,7 @@ async function saveFill() {
   editing.actionGoal = document.getElementById('f-goal').value;
   editing.companyName = document.getElementById('f-company').value;
   editing.hazards.forEach(h => { h.level = calcLevel(h.possibility,h.severity); h.levelAfter = calcLevel(h.possibilityAfter,h.severityAfter); h.judge = JUDGE[h.level]; });
-  editing.siteNumber = siteNumber; editing.vendorId = vendorId; editing.vendorName = vendorName; editing.date = today;
+  editing.siteNumber = siteNumber; editing.siteName = siteName; editing.vendorId = vendorId; editing.vendorName = vendorName; editing.date = today;
   App.loading(true);
   try {
     await Storage.saveKyWorker(editing);
