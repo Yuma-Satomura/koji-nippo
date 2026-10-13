@@ -179,6 +179,100 @@ td.rs { text-align: center; font-weight: bold; }
 </body></html>`;
   },
 
+  // ---- KY（危険予知活動表 RKY）PDF ----
+  async generateKyPDF(ky) {
+    const html = this._buildKyHtml(ky);
+    const fn = 'KY_' + (ky.siteNumber || '') + '_' + (ky.date || '').replace(/-/g, '') + '.pdf';
+    await this._renderAndDownload(html, fn, null);
+  },
+
+  _buildKyHtml(ky) {
+    const hz = (ky.hazards || []);
+    const hazardRows = hz.map((h, i) => `<tr>
+<td class="c">${i + 1}</td>
+<td>${this._esc(h.hazard)}</td>
+<td class="c">${this._esc(h.possibility)}</td>
+<td class="c">${this._esc(h.severity)}</td>
+<td class="c lv${h.level || 0}">${h.level || ''}</td>
+<td class="c sm">${this._esc(h.judge || '')}</td>
+</tr>`).join('');
+
+    const measureRows = hz.map((h, i) => `<tr>
+<td class="c">${i + 1}</td>
+<td>${this._esc(h.measure)}</td>
+<td class="c lv${h.levelAfter || 0}">${h.levelAfter || ''}</td>
+</tr>`).join('');
+
+    const qualRows = (ky.quals || []).filter(q => q.qual || q.worker).map(q =>
+      `<tr><td>${this._esc(q.qual)}</td><td>${this._esc(q.worker)}</td></tr>`).join('');
+
+    const workers = (ky.workers || []).map(w =>
+      `<div class="wk"><div class="wk-name">${this._esc(w.name)}</div>
+       ${w.signature ? `<img src="${w.signature}" class="wk-sig"/>` : '<div class="wk-sig"></div>'}</div>`).join('');
+
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Meiryo','MS Gothic',sans-serif; font-size: 9pt; background: white; }
+.page { width: 210mm; min-height: 297mm; padding: 10mm; }
+h1 { font-size: 14pt; text-align: center; margin-bottom: 3mm; }
+.top { display:flex; justify-content:space-between; font-size:9pt; margin-bottom:3mm; }
+.box { border:1px solid #333; padding:2mm 3mm; margin-bottom:2mm; }
+.box label { font-size:7.5pt; color:#555; display:block; }
+.box .v { font-size:9.5pt; white-space:pre-wrap; min-height:5mm; }
+.sect { font-weight:bold; color:#1e40af; font-size:9.5pt; margin:3mm 0 1mm; }
+table { width:100%; border-collapse:collapse; margin-bottom:2mm; }
+th { background:#1e40af; color:#fff; padding:1.3mm; font-size:8pt; border:1px solid #999; }
+td { border:1px solid #bbb; padding:1.3mm 2mm; font-size:8.5pt; vertical-align:top; }
+td.c { text-align:center; } td.sm { font-size:7.5pt; }
+.lv1,.lv2 { background:#dcfce7; } .lv3 { background:#fef9c3; } .lv4,.lv5 { background:#fee2e2; font-weight:bold; }
+.half { display:flex; gap:3mm; }
+.half > div { flex:1; }
+.wkwrap { display:grid; grid-template-columns: repeat(4,1fr); gap:2mm; }
+.wk { border:1px solid #bbb; border-radius:3px; padding:1.5mm; text-align:center; }
+.wk-name { font-size:8pt; margin-bottom:1mm; }
+.wk-sig { width:100%; height:12mm; object-fit:contain; border-top:1px solid #eee; }
+.legend { font-size:7pt; color:#555; border:1px solid #ccc; padding:2mm; margin-top:2mm; }
+.foot { display:flex; justify-content:flex-end; margin-top:3mm; }
+.foot .box { width:60mm; }
+</style></head><body>
+<div class="page">
+<h1>危険予知活動表（ＲＫＹ）</h1>
+<div class="top">
+  <div>${App.formatDate(ky.date)}</div>
+  <div>工事名：${this._esc(ky.siteName || '')}（${this._esc(ky.siteNumber || '')}）</div>
+</div>
+<div class="box"><label>作業内容</label><div class="v">${this._esc(ky.workContent)}</div></div>
+<div class="box"><label>大西熱学からの指示事項（安全・作業）</label><div class="v">${this._esc(ky.instructions)}</div></div>
+<div class="box"><label>本日の行動目標</label><div class="v">${this._esc(ky.actionGoal)}</div></div>
+
+<div class="sect">危険性の評価</div>
+<table><thead><tr><th style="width:7%">No</th><th>予測される危険性・有害性</th><th style="width:10%">可能性</th><th style="width:10%">重大性</th><th style="width:10%">危険度</th><th style="width:18%">判定</th></tr></thead>
+<tbody>${hazardRows}</tbody></table>
+
+<div class="sect">対策</div>
+<table><thead><tr><th style="width:7%">No</th><th>危険性・有害性の対策</th><th style="width:18%">対策後危険度</th></tr></thead>
+<tbody>${measureRows}</tbody></table>
+
+<div class="half">
+  <div>
+    <div class="sect">本日の有資格作業及び作業者</div>
+    <table><thead><tr><th>資格作業</th><th>作業者</th></tr></thead><tbody>${qualRows}</tbody></table>
+  </div>
+  <div>
+    <div class="sect">確認欄</div>
+    <div class="box" style="min-height:14mm;"><label>確認者</label><div class="v">${this._esc(ky.confirmer)}</div></div>
+    <div class="box"><label>会社名（グループ名）</label><div class="v">${this._esc(ky.companyName)}</div></div>
+  </div>
+</div>
+
+<div class="sect">作業員（サイン）</div>
+<div class="wkwrap">${workers}</div>
+
+<div class="legend">リスク判定基準：危険度 5＝即座に対策／4＝抜本的対策／3＝何らかの対策／2＝注意を要する／1＝現時点では対策不要　｜　可能性・重大性：○軽微/殆ど起らない　△重大/たまに　×極めて重大/かなり</div>
+</div>
+</body></html>`;
+  },
+
   async _renderAndDownload(html, filename, reports) {
     // Use iframe approach
     const iframe = document.createElement('iframe');

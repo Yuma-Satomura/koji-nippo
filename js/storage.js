@@ -328,5 +328,17 @@ const Storage = {
   },
   async saveInspection(inspection) {
     await API.inspect('saveInspection', { inspection });
-  }
+  },
+
+  // ---- KY（危険予知活動表） ----
+  async getKyList(siteNumber) {
+    return DB.get('ky_records',
+      `?site_number=eq.${encodeURIComponent(siteNumber)}&order=date.desc`);
+  },
+  async getKy(id) {
+    const rows = await DB.get('ky_records', `?id=eq.${encodeURIComponent(id)}`);
+    return rows[0] ? rows[0].data : null;
+  },
+  async saveKy(ky)              { await API.admin('saveKy', { ky }); },
+  async deleteKy(id, siteNumber){ await API.admin('deleteKy', { id, siteNumber }); }
 };
