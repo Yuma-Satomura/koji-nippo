@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>垂直昇降式高所作業車 作業開始前点検</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.chk-wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
+.eq-head { background:linear-gradient(135deg,#1e3a8a,#1e40af); color:#fff; border-radius:14px; padding:18px; margin-bottom:16px; }
+.eq-head .n { font-size:20px; font-weight:800; }
+.eq-head .k { font-size:13px; opacity:.85; margin-top:3px; }
+.card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; margin-bottom:14px; }
+.group-h { font-weight:800; color:#1e40af; font-size:14px; margin:14px 0 2px; }
+.group-h:first-child { margin-top:0; }
+.item { padding:10px 0; border-bottom:1px solid #f1f5f9; }
+.item:last-child { border-bottom:0; }
+.item .label { font-size:14px; font-weight:600; margin-bottom:8px; }
+.opts { display:flex; gap:8px; }
+.opt { flex:1; text-align:center; padding:9px 0; border:1.5px solid #cbd5e1; border-radius:9px; font-size:14px; font-weight:600; cursor:pointer; user-select:none; color:#475569; }
+.opt.sel-good { background:#dcfce7; border-color:#16a34a; color:#15803d; }
+.opt.sel-warn { background:#fef9c3; border-color:#ca8a04; color:#a16207; }
+.opt.sel-bad  { background:#fee2e2; border-color:#dc2626; color:#b91c1c; }
+.field { margin-bottom:12px; }
+.field label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:5px; }
+.field input, .field textarea { width:100%; box-sizing:border-box; padding:11px 13px; font-size:16px; border:1.5px solid #cbd5e1; border-radius:9px; }
+.overall { display:flex; gap:10px; }
+.overall .opt { padding:13px 0; font-size:15px; }
+.done-screen { text-align:center; padding:48px 16px; display:none; }
+.done-screen .ico { font-size:56px; }
+.bulk { display:flex; justify-content:flex-end; margin-bottom:4px; }
+.bulk button { background:none; border:1px solid #cbd5e1; border-radius:8px; padding:6px 12px; font-size:13px; color:#15803d; cursor:pointer; }
+.notice { background:#fef3c7; color:#92400e; border-radius:9px; padding:10px 12px; font-size:13px; margin-bottom:14px; display:none; }
+</style>
+</head>
+<body>
+<div class="chk-wrap" id="main" style="display:none;">
+  <div class="eq-head">
+    <div class="n" id="eq-name">—</div>
+    <div class="k" id="eq-kind">—</div>
+  </div>
+
+  <div class="notice" id="today-notice">本日はすでに点検記録があります。上書き保存されます。</div>
+
+  <div class="card">
+    <div class="field">
+      <label for="inspector">点検者名 <span style="color:#dc2626">*</span></label>
+      <input type="text" id="inspector" placeholder="氏名">
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="idate">点検日</label>
+      <input type="date" id="idate">
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700; margin-bottom:2px;">作業開始前点検</div>
+    <div class="bulk"><button type="button" onclick="allGood()">すべて「異常なし」</button></div>
+    <div id="items"></div>
+  </div>
+
+  <div class="card">
+    <div class="field" style="margin-bottom:12px;">
+      <label>総合判定 <span style="color:#dc2626">*</span></label>
+      <div class="overall">
+        <div class="opt" data-overall="使用可"  onclick="setOverall('使用可')">使用可</div>
+        <div class="opt" data-overall="使用不可" onclick="setOverall('使用不可')">使用不可</div>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="memo">特記事項</label>
+      <textarea id="memo" rows="2" placeholder="異常箇所・処置など"></textarea>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" style="width:100%; padding:14px; font-size:16px;" onclick="submit()">点検を記録する</button>
+</div>
+
+<div class="done-screen" id="done">
+  <div class="ico">✅</div>
+  <div style="font-size:20px; font-weight:800; margin-top:10px;">点検を記録しました</div>
+  <div style="color:#64748b; margin-top:6px;" id="done-sub"></div>
+</div>
+
+<div id="error-screen" style="display:none; text-align:center; padding:48px 16px; color:#64748b;">
+  QRコードが正しくありません。<br>機械・重機のQRを読み取ってください。
+</div>
+
+<div id="page-loading" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:9998;align-items:center;justify-content:center;"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+<script>
+// 垂直昇降式高所作業車 作業開始前点検表（Sheet1）の項目を反映
+// チェック記号：○異常なし／△要修理／×不良
+const OPTS = [
+  { v: '異常なし', cls: 'sel-good' },
+  { v: '要修理',   cls: 'sel-warn' },
+  { v: '不良',     cls: 'sel-bad'  }
+];
+const GROUPS = [
+  { group: '持込・届出', items: [
+    '特定自主検査標章の有無及び期限の確認',
+    '制限荷重・使用会社名・取扱者表示の有無',
+    '持込機械等の届けをしてあるか',
+    '資格証の携帯を確認（10m以上：技能講習／10m未満：特別教育）'
+  ]},
+  { group: '外観・機体', items: [
+    'タイヤ（又はキャタピラ）の状態・空気圧・取付はよいか',
+    '各所のボルトに弛み・脱落は無いか',
+    '作業床に損傷・隙間は無いか。手摺に損傷は無いか',
+    '各配線・油圧系統に異常は無いか',
+    '外部から確認して油漏れはないか（停止場所の床確認）'
+  ]},
+  { group: 'エンジン', items: [
+    'エンジン（又はモーター）の具合（排気・音）はよいか',
+    'エンジンの潤滑・冷却・燃料・バッテリーに異常はないか',
+    '油漏れ・液漏れはないか',
+    '油圧装置に異常はないか'
+  ]},
+  { group: '安全装置', items: [
+    '計器類の作動・点灯はよいか',
+    '誤作動防止（ペダルフード・レバーガード）はよいか',
+    '安全装置（非常停止・傾斜防止・タッチセンサー・警報等）に異常は無いか'
+  ]},
+  { group: '設置・操作走行・他', items: [
+    '操作レバーは正常に動くか',
+    '走行面は水平堅固・油等で滑り易い状態ではないか',
+    'アームの動作・形状は正常か',
+    '作業床上で使用する安全帯は着用したか',
+    '積載荷重を超えるような荷を作業床に積んでいないか',
+    '走行系統（ブレーキ、クラッチ）に異常は無いか',
+    '長物の荷を扱う際は専用台を設置しているか'
+  ]}
+];
+const ALL_ITEMS = GROUPS.flatMap(g => g.items);
+
+const results = {};
+let overall = '';
+let equipment = null;
+const eqId = new URLSearchParams(location.search).get('eq');
+
+async function init() {
+  if (!eqId) { document.getElementById('error-screen').style.display = ''; return; }
+  App.loading(true);
+  try {
+    equipment = await Storage.getEquipmentItem(eqId);
+    if (!equipment) { document.getElementById('error-screen').style.display = ''; return; }
+
+    document.getElementById('eq-name').textContent = equipment.name;
+    document.getElementById('eq-kind').textContent =
+      (equipment.kind || '') + (equipment.site_number ? ' ・ 現場 ' + equipment.site_number : '');
+    document.getElementById('idate').value = App.today();
+    renderItems();
+    // 機械が見つかった時点でフォームを表示（履歴読み込みの失敗で空白にならないように）
+    document.getElementById('main').style.display = '';
+  } catch (e) {
+    document.getElementById('error-screen').style.display = '';
+    App.loading(false);
+    return;
+  }
+  App.loading(false);
+
+  // 本日分があれば読み込んで上書き編集（失敗してもフォームは表示済み）
+  try {
+    const existing = await Storage.getInspection(eqId, App.today());
+    if (existing) {
+      document.getElementById('today-notice').style.display = '';
+      document.getElementById('inspector').value = existing.inspector || '';
+      document.getElementById('memo').value = existing.memo || '';
+      // 保存は項目名キー → 画面のインデックスキーへ対応付け
+      const labelToKey = {};
+      GROUPS.forEach((g, gi) => g.items.forEach((label, ii) => { labelToKey[label] = gi + '_' + ii; }));
+      Object.entries(existing.items || {}).forEach(([label, v]) => {
+        const k = labelToKey[label];
+        if (k) setItem(k, v);
+      });
+      if (existing.overall) setOverall(existing.overall);
+    }
+  } catch (e) { /* 履歴は任意。無視してフォームは使える */ }
+}
+
+function renderItems() {
+  document.getElementById('items').innerHTML = GROUPS.map((g, gi) => `
+    <div class="group-h">${App.escHtml(g.group)}</div>
+    ${g.items.map((label, ii) => {
+      const key = gi + '_' + ii;
+      return `
+      <div class="item">
+        <div class="label">${App.escHtml(label)}</div>
+        <div class="opts">
+          ${OPTS.map(o => `<div class="opt" data-k="${key}" data-v="${o.v}" onclick="setItem('${key}','${o.v}')">${o.v}</div>`).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  `).join('');
+}
+
+function setItem(key, val) {
+  results[key] = val;
+  const opt = OPTS.find(o => o.v === val);
+  document.querySelectorAll(`.opt[data-k="${CSS.escape(key)}"]`).forEach(el => {
+    el.classList.remove('sel-good', 'sel-warn', 'sel-bad');
+    if (el.dataset.v === val && opt) el.classList.add(opt.cls);
+  });
+}
+
+function allGood() {
+  GROUPS.forEach((g, gi) => g.items.forEach((_, ii) => setItem(gi + '_' + ii, '異常なし')));
+}
+
+function setOverall(val) {
+  overall = val;
+  document.querySelectorAll('[data-overall]').forEach(el => {
+    el.classList.remove('sel-good', 'sel-bad');
+    if (el.dataset.overall === val) el.classList.add(val === '使用可' ? 'sel-good' : 'sel-bad');
+  });
+}
+
+async function submit() {
+  const inspector = document.getElementById('inspector').value.trim();
+  if (!inspector) { App.toast('点検者名を入力してください', 'warning'); return; }
+  if (!overall)   { App.toast('総合判定を選んでください', 'warning'); return; }
+
+  // 画面のインデックスキー → 項目名キーに変換して保存（記録を自己説明的にする）
+  const itemsLabeled = {};
+  const sections = GROUPS.map((g, gi) => ({
+    group: g.group,
+    items: g.items.map((label, ii) => {
+      const r = results[gi + '_' + ii] || '';
+      if (r) itemsLabeled[label] = r;
+      return { label, result: r };
+    })
+  }));
+
+  const inspection = {
+    equipmentId: eqId,
+    equipmentName: equipment.name,
+    title: '垂直昇降式高所作業車 作業開始前点検表',
+    date: document.getElementById('idate').value || App.today(),
+    inspector,
+    items: itemsLabeled,  // 件数集計・後方互換のため項目名キーも保持
+    sections,             // 帳票（PDF）用のグループ構造つき
+    overall,
+    memo: document.getElementById('memo').value
+  };
+
+  App.loading(true);
+  try {
+    await Storage.saveInspection(inspection);
+    document.getElementById('main').style.display = 'none';
+    document.getElementById('done-sub').textContent = equipment.name + ' / ' + inspection.date;
+    document.getElementById('done').style.display = '';
+  } catch (e) {
+    App.handleError(e, '記録に失敗しました');
+  } finally { App.loading(false); }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -110,6 +110,75 @@ td.num { text-align: center; }
     return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
   },
 
+  // ---- 機械点検表 PDF ----
+  async generateInspectionPDF(insp, equipment) {
+    const html = this._buildInspectionHtml(insp, equipment || {});
+    const fn = '点検表_' + (insp.equipmentName || '機械') + '_' + (insp.date || '').replace(/-/g, '') + '.pdf';
+    await this._renderAndDownload(html, fn, null);
+  },
+
+  _buildInspectionHtml(insp, eq) {
+    const resClass = v => v === '不良' ? 'r-bad' : v === '要修理' ? 'r-warn' : v === '異常なし' ? 'r-ok' : '';
+    // sections があればグループ表示、無ければ items からフラット表示
+    let bodyRows = '';
+    if (insp.sections && insp.sections.length) {
+      bodyRows = insp.sections.map(sec => {
+        const items = (sec.items || []).map(it =>
+          `<tr><td class="it">${this._esc(it.label)}</td><td class="rs ${resClass(it.result)}">${this._esc(it.result || '')}</td></tr>`
+        ).join('');
+        return `<tr><td class="grp" colspan="2">${this._esc(sec.group)}</td></tr>${items}`;
+      }).join('');
+    } else {
+      bodyRows = Object.entries(insp.items || {}).map(([label, v]) =>
+        `<tr><td class="it">${this._esc(label)}</td><td class="rs ${resClass(v)}">${this._esc(v)}</td></tr>`
+      ).join('');
+    }
+
+    const overallClass = insp.overall === '使用可' ? 'ov-ok' : 'ov-ng';
+
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Meiryo','MS Gothic',sans-serif; font-size: 10pt; background: white; }
+.page { width: 210mm; min-height: 297mm; padding: 14mm; }
+h1 { font-size: 15pt; text-align: center; margin-bottom: 5mm; }
+.hgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; margin-bottom: 4mm; }
+.field { border: 1px solid #333; padding: 2mm 3mm; }
+.field label { font-size: 8pt; color: #555; display: block; }
+.field span { font-size: 11pt; font-weight: bold; }
+.wide { grid-column: span 2; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; }
+th { background: #1e40af; color: white; padding: 2mm; font-size: 9pt; border: 1px solid #999; }
+td { border: 1px solid #bbb; padding: 1.8mm 3mm; font-size: 9.5pt; }
+td.grp { background: #e8eefb; font-weight: bold; color: #1e40af; }
+td.it { width: 78%; }
+td.rs { text-align: center; font-weight: bold; }
+.r-ok { color: #15803d; } .r-warn { color: #a16207; } .r-bad { color: #b91c1c; }
+.overall-box { border: 2px solid #333; padding: 3mm; text-align: center; font-size: 13pt; font-weight: bold; margin-bottom: 4mm; }
+.ov-ok { color: #15803d; } .ov-ng { color: #b91c1c; }
+.memo { border: 1px solid #333; padding: 3mm; min-height: 18mm; }
+.memo label { font-size: 8pt; color: #555; display: block; margin-bottom: 1mm; }
+.legend { font-size: 8pt; color: #666; margin-top: 3mm; }
+</style></head><body>
+<div class="page">
+<h1>${this._esc(insp.title || '作業開始前点検表')}</h1>
+<div class="hgrid">
+  <div class="field wide"><label>機械・名称</label><span>${this._esc(insp.equipmentName || eq.name || '')}</span></div>
+  <div class="field"><label>種別</label><span>${this._esc(eq.kind || '')}</span></div>
+  <div class="field"><label>配置現場</label><span>${this._esc(eq.site_number || '')}</span></div>
+  <div class="field"><label>点検日</label><span>${App.formatDate(insp.date)}</span></div>
+  <div class="field"><label>点検者</label><span>${this._esc(insp.inspector || '')}</span></div>
+</div>
+<div class="overall-box ${overallClass}">総合判定：${this._esc(insp.overall || '—')}</div>
+<table>
+<thead><tr><th>点検項目</th><th style="width:22%">結果</th></tr></thead>
+<tbody>${bodyRows}</tbody>
+</table>
+<div class="memo"><label>特記事項</label>${this._esc(insp.memo || '')}</div>
+<div class="legend">○ 異常なし ／ △ 要修理 ／ × 不良</div>
+</div>
+</body></html>`;
+  },
+
   async _renderAndDownload(html, filename, reports) {
     // Use iframe approach
     const iframe = document.createElement('iframe');

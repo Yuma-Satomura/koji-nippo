@@ -113,10 +113,11 @@ const DB = {
 // Edge Function APIヘルパー（書き込み用）
 const API = {
   async admin(action, data) {
-    const pin = Storage.getPin();
-    const res = await fetch(`${EDGE_BASE}/admin-write`, {
+    const token = await Auth.getAccessToken();
+    if (!token) throw new Error('ログインが必要です');
+    const res = await fetch(`${EDGE_BASE}/admin-auth`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action, data })
     });
     if (!res.ok) {
@@ -127,6 +128,19 @@ const API = {
   },
   async worker(action, data) {
     const res = await fetch(`${EDGE_BASE}/worker-write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+  // 機械点検（匿名・QRから）
+  async inspect(action, data) {
+    const res = await fetch(`${EDGE_BASE}/equipment-inspect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, data })
@@ -285,5 +299,34 @@ const Storage = {
     if (DEMO) return;
     const parsed = JSON.parse(jsonStr);
     await API.admin('importAll', parsed);
+  },
+
+  // ---- 機械・重機マスタ ----
+  async getEquipment(siteNumber) {
+    if (DEMO) return [];
+    const q = siteNumber
+      ? `?site_number=eq.${encodeURIComponent(siteNumber)}&order=created_at.asc`
+      : '?order=created_at.asc';
+    return DB.get('equipment', q);
+  },
+  async getEquipmentItem(id) {
+    const rows = await DB.get('equipment', `?id=eq.${encodeURIComponent(id)}`);
+    return rows[0] || null;
+  },
+  async saveEquipment(e)   { await API.admin('saveEquipment', e); },
+  async deleteEquipment(id){ await API.admin('deleteEquipment', { id }); },
+
+  // ---- 機械点検記録 ----
+  async getInspections(equipmentId) {
+    return DB.get('equipment_inspections',
+      `?equipment_id=eq.${encodeURIComponent(equipmentId)}&order=date.desc`);
+  },
+  async getInspection(equipmentId, dateStr) {
+    const rows = await DB.get('equipment_inspections',
+      `?id=eq.${encodeURIComponent(equipmentId + '_' + dateStr)}`);
+    return rows[0] ? rows[0].data : null;
+  },
+  async saveInspection(inspection) {
+    await API.inspect('saveInspection', { inspection });
   }
 };

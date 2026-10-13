@@ -3,53 +3,51 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>管理者ログイン</title>
+<title>社員ログイン</title>
 <link rel="stylesheet" href="css/style.css">
 <style>
 body { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); }
 .login-card {
   background: white; border-radius: 20px; padding: 36px 28px;
   box-shadow: 0 20px 60px rgba(0,0,0,.3);
-  width: 100%; max-width: 340px;
+  width: 100%; max-width: 360px;
 }
+.field { margin-bottom: 16px; text-align: left; }
+.field label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:6px; }
+.field input {
+  width: 100%; box-sizing: border-box; padding: 12px 14px; font-size: 16px;
+  border: 1.5px solid #cbd5e1; border-radius: 10px; outline: none;
+}
+.field input:focus { border-color:#1e40af; }
+.btn-login {
+  width: 100%; padding: 13px; font-size: 16px; font-weight: 700; color: white;
+  background: #1e40af; border: none; border-radius: 10px; cursor: pointer; margin-top: 4px;
+}
+.btn-login:disabled { opacity:.6; cursor:default; }
 </style>
 </head>
 <body>
 <div class="full-center">
   <div class="login-card">
-    <div class="text-center" style="margin-bottom:28px;">
+    <div class="text-center" style="margin-bottom:24px;">
       <div style="font-size:40px;margin-bottom:8px;">🔐</div>
-      <div style="font-size:20px;font-weight:700;color:#1e40af;">管理者ログイン</div>
-      <div id="first-time-msg" style="display:none;font-size:12px;color:#64748b;margin-top:6px;">初回：PINを設定してください（4〜6桁）</div>
+      <div style="font-size:20px;font-weight:700;color:#1e40af;">社員ログイン</div>
     </div>
 
-    <div class="pin-display" id="pin-display">
-      <div class="pin-dot" id="dot-0"></div>
-      <div class="pin-dot" id="dot-1"></div>
-      <div class="pin-dot" id="dot-2"></div>
-      <div class="pin-dot" id="dot-3"></div>
-      <div class="pin-dot" id="dot-4" style="display:none"></div>
-      <div class="pin-dot" id="dot-5" style="display:none"></div>
-    </div>
+    <form id="login-form" autocomplete="on">
+      <div class="field">
+        <label for="email">メールアドレス</label>
+        <input type="email" id="email" name="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">パスワード</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
 
-    <div id="error-msg" style="display:none;text-align:center;color:#dc2626;font-size:13px;margin-bottom:12px;">
-      PINが違います
-    </div>
+      <div id="error-msg" style="display:none;text-align:center;color:#dc2626;font-size:13px;margin:4px 0 12px;"></div>
 
-    <div class="numpad">
-      <button class="numpad-btn" onclick="pressNum('1')">1</button>
-      <button class="numpad-btn" onclick="pressNum('2')">2</button>
-      <button class="numpad-btn" onclick="pressNum('3')">3</button>
-      <button class="numpad-btn" onclick="pressNum('4')">4</button>
-      <button class="numpad-btn" onclick="pressNum('5')">5</button>
-      <button class="numpad-btn" onclick="pressNum('6')">6</button>
-      <button class="numpad-btn" onclick="pressNum('7')">7</button>
-      <button class="numpad-btn" onclick="pressNum('8')">8</button>
-      <button class="numpad-btn" onclick="pressNum('9')">9</button>
-      <button class="numpad-btn" onclick="clearPin()" style="font-size:14px;color:#64748b;">クリア</button>
-      <button class="numpad-btn" onclick="pressNum('0')">0</button>
-      <button class="numpad-btn" onclick="backspace()" style="font-size:20px;">⌫</button>
-    </div>
+      <button type="submit" class="btn-login" id="btn-login">ログイン</button>
+    </form>
 
     <div style="margin-top:20px;text-align:center;">
       <a href="index.html" style="font-size:13px;color:#64748b;">← トップに戻る</a>
@@ -57,80 +55,42 @@ body { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); }
   </div>
 </div>
 
+<div id="page-loading" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:9998;align-items:center;justify-content:center;"></div>
+
 <script src="js/storage.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/app.js"></script>
 <script>
-let pin = '';
-const MAX = 6;
-const MIN = 4;
-
 function init() {
-  if (Auth.isLoggedIn()) {
-    redirectAfterLogin();
-    return;
-  }
-  if (!Storage.getPin()) {
-    document.getElementById('first-time-msg').style.display = '';
-  }
+  if (Auth.isLoggedIn()) { redirectAfterLogin(); }
 }
 
-function pressNum(n) {
-  if (pin.length >= MAX) return;
-  pin += n;
-  updateDots();
-  if (pin.length >= MIN && pin.length <= MAX) {
-    const stored = Storage.getPin();
-    if (stored ? pin.length === stored.length : pin.length === MIN) {
-      setTimeout(tryLogin, 100);
-    }
-  }
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = '';
 }
 
-function backspace() {
-  pin = pin.slice(0, -1);
-  updateDots();
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || !password) return;
+
   document.getElementById('error-msg').style.display = 'none';
-}
-
-function clearPin() {
-  pin = '';
-  updateDots();
-  document.getElementById('error-msg').style.display = 'none';
-}
-
-function updateDots() {
-  const stored = Storage.getPin();
-  const len = stored ? stored.length : MIN;
-  // Show dots based on PIN length
-  for (let i = 0; i < MAX; i++) {
-    const dot = document.getElementById('dot-' + i);
-    if (i < len) {
-      dot.style.display = '';
-      dot.classList.toggle('filled', i < pin.length);
-    } else {
-      dot.style.display = 'none';
-    }
-  }
-}
-
-async function tryLogin() {
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true;
   App.loading(true);
-  const ok = await Auth.login(pin);
+  const result = await Auth.login(email, password);
   App.loading(false);
-  if (ok) {
+  btn.disabled = false;
+
+  if (result.ok) {
     redirectAfterLogin();
   } else {
-    document.getElementById('error-msg').style.display = '';
-    pin = '';
-    updateDots();
-    // Shake animation
-    const disp = document.getElementById('pin-display');
-    disp.style.animation = 'none';
-    disp.offsetHeight;
-    disp.style.animation = 'shake .3s';
+    showError(result.error || 'ログインに失敗しました');
   }
-}
+});
 
 function redirectAfterLogin() {
   const params = new URLSearchParams(location.search);
@@ -142,19 +102,7 @@ function redirectAfterLogin() {
   }
 }
 
-// Keyboard support
-document.addEventListener('keydown', e => {
-  if (e.key >= '0' && e.key <= '9') pressNum(e.key);
-  else if (e.key === 'Backspace') backspace();
-  else if (e.key === 'Enter' && pin.length >= MIN) tryLogin();
-});
-
-const style = document.createElement('style');
-style.textContent = '@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }';
-document.head.appendChild(style);
-
 init();
-updateDots();
 </script>
 </body>
 </html>
