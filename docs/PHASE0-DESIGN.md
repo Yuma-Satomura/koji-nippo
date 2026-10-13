@@ -205,6 +205,18 @@ STEP 4  動作確認後、admin-write Edge Function と admin_pin を廃止
 - **職人のQR入力はSTEP1〜4を通じて無停止・無変更。**
 - ロールバックは各STEPで可能（STEP3まではadmin-writeを残しておける）。
 
+### STEP3の実装上の工夫（本番を壊さないため）
+
+Edge Function は本番・プレビュー共通の1つのSupabaseに乗る。既存 `admin-write`(PIN) を
+書き換えると本番が壊れるため、**JWT認証の新関数 `admin-auth` を別slugで追加**し、
+feature ブランチのフロントだけがそれを呼ぶ。
+
+- `admin-auth`：JWT検証＋`staff`の役割判定。admin=全操作、member=担当現場(`site_staff`)のみ。
+  現場マスタ管理(saveSite/deleteSite/importAll)はadminのみ。書き込み自体はservice_role。
+- 本番(main)は従来どおり `admin-write`(PIN) を使い続ける → **本番は無影響**。
+- 認証切替はプレビューで検証し、問題なければ main にマージ。マージ時点で本番が
+  `admin-auth`＋ログインに切り替わる。その後 `admin-write` と PIN を廃止（STEP4）。
+
 ---
 
 ## 7. フェーズ2（工程表統合）への布石

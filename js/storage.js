@@ -113,10 +113,11 @@ const DB = {
 // Edge Function APIヘルパー（書き込み用）
 const API = {
   async admin(action, data) {
-    const pin = Storage.getPin();
-    const res = await fetch(`${EDGE_BASE}/admin-write`, {
+    const token = await Auth.getAccessToken();
+    if (!token) throw new Error('ログインが必要です');
+    const res = await fetch(`${EDGE_BASE}/admin-auth`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action, data })
     });
     if (!res.ok) {
