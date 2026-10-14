@@ -364,12 +364,25 @@ const Storage = {
   // 管理者（ログイン）：閲覧・削除
   async deleteKy(id, siteNumber){ await API.admin('deleteKy', { id, siteNumber }); },
 
-  // 大西熱学からの指示事項（現場ごと・管理者が前もって入力）
-  async getKyInstruction(siteNumber) {
-    const rows = await DB.get('ky_instructions', `?site_number=eq.${encodeURIComponent(siteNumber)}`);
+  // 大西熱学からの指示事項（日付×業者・管理者が前もって入力。全業者は __ALL__）
+  KY_ALL: '__ALL__',
+  // ky-worker用：業者固有→全業者の順で解決
+  async getKyInstruction(siteNumber, vendorId, dateStr) {
+    const base = `?site_number=eq.${encodeURIComponent(siteNumber)}&date=eq.${encodeURIComponent(dateStr)}`;
+    let rows = await DB.get('ky_instructions', `${base}&vendor_id=eq.${encodeURIComponent(vendorId)}`);
+    if (rows[0]) return rows[0].instructions;
+    rows = await DB.get('ky_instructions', `${base}&vendor_id=eq.${encodeURIComponent(this.KY_ALL)}`);
     return rows[0] ? rows[0].instructions : '';
   },
-  async saveKyInstruction(siteNumber, instructions) {
-    await API.admin('saveKyInstruction', { siteNumber, instructions });
+  // 管理画面用：その日付の全設定を取得
+  async getKyInstructionsForDate(siteNumber, dateStr) {
+    return DB.get('ky_instructions',
+      `?site_number=eq.${encodeURIComponent(siteNumber)}&date=eq.${encodeURIComponent(dateStr)}`);
+  },
+  async saveKyInstruction(siteNumber, dateStr, vendorId, instructions) {
+    await API.admin('saveKyInstruction', { siteNumber, date: dateStr, vendorId, instructions });
+  },
+  async deleteKyInstruction(siteNumber, dateStr, vendorId) {
+    await API.admin('deleteKyInstruction', { siteNumber, date: dateStr, vendorId });
   }
 };

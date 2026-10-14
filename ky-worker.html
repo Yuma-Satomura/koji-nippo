@@ -160,7 +160,7 @@ async function init() {
     document.getElementById('h-vendor').textContent = vendorName;
     document.getElementById('h-date').textContent = App.formatDate(today);
 
-    adminInstruction = await Storage.getKyInstruction(siteNumber);
+    adminInstruction = await Storage.getKyInstruction(siteNumber, vendorId, today);
     ky = await Storage.getKyFor(siteNumber, vendorId, today);
     if (ky) { showView(); } else { showFill(false); }
   } catch (e) { App.handleError(e, '読み込みに失敗しました'); }

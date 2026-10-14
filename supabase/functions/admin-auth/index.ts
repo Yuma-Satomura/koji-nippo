@@ -141,9 +141,16 @@ Deno.serve(async (req: Request) => {
         if (!(await canEditSite(data.siteNumber as string))) return forbidden();
         await supabase.from('ky_instructions').upsert({
           site_number: data.siteNumber,
+          date: data.date,
+          vendor_id: data.vendorId ?? '__ALL__',
           instructions: data.instructions ?? '',
           updated_at: new Date().toISOString()
         });
+        break;
+      case 'deleteKyInstruction':
+        if (!(await canEditSite(data.siteNumber as string))) return forbidden();
+        await supabase.from('ky_instructions').delete()
+          .eq('site_number', data.siteNumber).eq('date', data.date).eq('vendor_id', data.vendorId);
         break;
       default:
         return json({ error: 'Unknown action' }, 400);
