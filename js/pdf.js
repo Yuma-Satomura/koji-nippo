@@ -179,6 +179,113 @@ td.rs { text-align: center; font-weight: bold; }
 </body></html>`;
   },
 
+  // ---- KY（危険予知活動表 RKY）PDF ----
+  async generateKyPDF(ky) {
+    const html = this._buildKyHtml(ky);
+    const fn = 'KY_' + (ky.siteNumber || '') + '_' + (ky.date || '').replace(/-/g, '') + '.pdf';
+    await this._renderAndDownload(html, fn, null);
+  },
+
+  _buildKyHtml(ky) {
+    const hz = (ky.hazards || []);
+    const hazardRows = hz.map((h, i) => `<tr>
+<td class="c">${i + 1}</td>
+<td>${this._esc(h.hazard)}</td>
+<td class="c">${this._esc(h.possibility)}</td>
+<td class="c">${this._esc(h.severity)}</td>
+<td class="c">${this._esc((h.possibility || '') + (h.severity || ''))}</td>
+<td class="c ${((h.level || 0) >= 4) ? 'hi' : ''}">${h.level || ''}</td>
+</tr>`).join('');
+
+    const measureRows = hz.map((h, i) => `<tr>
+<td class="c">${i + 1}</td>
+<td>${this._esc(h.measure)}</td>
+<td class="c ${((h.levelAfter || 0) >= 4) ? 'hi' : ''}">${h.levelAfter || ''}</td>
+</tr>`).join('');
+
+    const qualRows = (ky.quals || []).filter(q => q.qual || q.worker).map(q =>
+      `<tr><td>${this._esc(q.qual)}</td><td>${this._esc(q.worker)}</td></tr>`).join('');
+
+    const workers = (ky.workers || []).map(w =>
+      `<div class="wk"><div class="wk-name">${this._esc(w.name)}</div>
+       ${w.signature ? `<img src="${w.signature}" class="wk-sig"/>` : '<div class="wk-sig"></div>'}</div>`).join('');
+
+    const fm = ky.foreman || {};
+
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Meiryo','MS Gothic',sans-serif; font-size: 9pt; background: #fff; color: #000; }
+.page { width: 210mm; min-height: 297mm; padding: 10mm; }
+.hdr { display:flex; align-items:stretch; border:1.5px solid #000; margin-bottom:2mm; }
+.hdr .date { flex:1; padding:2mm 3mm; border-right:1px solid #000; font-size:9pt; display:flex; align-items:center; }
+.hdr .title { flex:1.2; padding:2mm; text-align:center; font-size:13pt; font-weight:bold; border-right:1px solid #000; display:flex; align-items:center; justify-content:center; }
+.hdr .kakunin { width:45mm; }
+.hdr .kakunin .lbl { font-size:7pt; border-bottom:1px solid #000; padding:1mm 2mm; text-align:center; }
+.hdr .kakunin .sig { height:16mm; display:flex; align-items:center; justify-content:center; }
+.hdr .kakunin .sig img { max-height:14mm; max-width:40mm; } .hdr .kakunin .nm { font-size:8pt; }
+.meta { display:flex; gap:0; border:1px solid #000; border-top:0; margin-bottom:2mm; }
+.meta > div { padding:2mm 3mm; font-size:9pt; } .meta .m1 { flex:2; border-right:1px solid #000; } .meta .m2 { flex:1; }
+.box { border:1px solid #000; border-top:0; padding:2mm 3mm; }
+.box label { font-size:7.5pt; display:block; }
+.box .v { font-size:9.5pt; white-space:pre-wrap; min-height:5mm; }
+.sect { font-weight:bold; font-size:9.5pt; margin:3mm 0 1mm; border-left:3px solid #000; padding-left:2mm; }
+table { width:100%; border-collapse:collapse; margin-bottom:2mm; }
+th { background:#e3e3e3; color:#000; padding:1.3mm; font-size:8pt; border:1px solid #000; }
+td { border:1px solid #000; padding:1.3mm 2mm; font-size:8.5pt; vertical-align:top; }
+td.c { text-align:center; } td.hi { font-weight:bold; background:#dcdcdc; }
+.half { display:flex; gap:3mm; } .half > div { flex:1; }
+.wkwrap { display:grid; grid-template-columns: repeat(4,1fr); gap:1.5mm; }
+.wk { border:1px solid #000; padding:1.5mm; text-align:center; }
+.wk-name { font-size:8pt; margin-bottom:1mm; }
+.wk-sig { width:100%; height:12mm; object-fit:contain; border-top:1px solid #999; }
+.legend { font-size:7pt; border:1px solid #000; padding:2mm; margin-top:2mm; }
+.notes { font-size:7pt; margin-top:2mm; line-height:1.5; }
+</style></head><body>
+<div class="page">
+<div class="hdr">
+  <div class="date">${App.formatDate(ky.date)}</div>
+  <div class="title">危険予知活動表（ＲＫＹ）</div>
+  <div class="kakunin">
+    <div class="lbl">確認欄（職長・現場責任者）</div>
+    <div class="sig">${fm.signature ? `<img src="${fm.signature}"/>` : `<span class="nm">${this._esc(fm.name || '')}</span>`}</div>
+  </div>
+</div>
+<div class="meta">
+  <div class="m1">工事名：${this._esc(ky.siteName || '')}（${this._esc(ky.siteNumber || '')}）</div>
+  <div class="m2">業者：${this._esc(ky.vendorName || '')}</div>
+</div>
+<div class="box"><label>作業内容</label><div class="v">${this._esc(ky.workContent)}</div></div>
+<div class="box"><label>大西熱学からの指示事項（安全・作業）</label><div class="v">${this._esc(ky.instructions)}</div></div>
+<div class="box"><label>本日の行動目標</label><div class="v">${this._esc(ky.actionGoal)}</div></div>
+
+<div class="sect">危険のポイント（作業手順の主なステップから洗い出し評価する）</div>
+<table><thead><tr><th style="width:6%">No</th><th>予測される危険性・有害性（～して ～する）</th><th style="width:9%">可能性</th><th style="width:9%">重大性</th><th style="width:12%">リスク見積り</th><th style="width:9%">危険度</th></tr></thead>
+<tbody>${hazardRows}</tbody></table>
+
+<div class="sect">対策（作業手順の急所を活用して対策を立てる）</div>
+<table><thead><tr><th style="width:6%">No</th><th>危険性・有害性の対策（否定語はさける）</th><th style="width:18%">対策後の危険度</th></tr></thead>
+<tbody>${measureRows}</tbody></table>
+
+<div class="half">
+  <div>
+    <div class="sect">本日の有資格作業及び作業者</div>
+    <table><thead><tr><th>資格作業</th><th>作業者</th></tr></thead><tbody>${qualRows || '<tr><td>&nbsp;</td><td></td></tr>'}</tbody></table>
+  </div>
+  <div>
+    <div class="sect">会社名（グループ名）</div>
+    <div class="box" style="border-top:1px solid #000; min-height:12mm;"><div class="v">${this._esc(ky.companyName)}</div></div>
+  </div>
+</div>
+
+<div class="sect">作業員（サイン）</div>
+<div class="wkwrap">${workers || '<div class="wk"><div class="wk-name">&nbsp;</div><div class="wk-sig"></div></div>'}</div>
+
+<div class="legend">リスク判定基準：危険度 5＝即座に対策／4＝抜本的対策／3＝何らかの対策／2＝注意を要する／1＝現時点では対策不要　｜　可能性・重大性：○＝殆ど起らない/軽微　△＝たまに/重大　×＝かなり/極めて重大</div>
+<div class="notes">記入時の注意事項：・危険予知活動は全員参加し、必ず全員が自筆サインすること。　・当日の作業内容をよく理解し、作業手順に基いて危険ポイントの洗い出しを行うこと（最低３項目以上）。　・有資格作業を明確にし、必ず資格本証を携帯し作業を行うこと。　・作業終了時、作業場所の清掃・整理を行い危険予知活動表を担当者に提出してから帰宅すること。</div>
+</div>
+</body></html>`;
+  },
+
   async _renderAndDownload(html, filename, reports) {
     // Use iframe approach
     const iframe = document.createElement('iframe');

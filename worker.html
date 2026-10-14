@@ -161,6 +161,13 @@
             <p>次回の日付・予定人数・作業内容を事前登録します</p>
           </div>
         </button>
+        <button class="mode-btn" onclick="goKy()" style="border-top:1px solid #eef2f7;">
+          <div class="mode-icon">⚠️</div>
+          <div class="mode-text">
+            <h3>KY（危険予知）</h3>
+            <p>職長が記入し、作業員が内容確認・署名します</p>
+          </div>
+        </button>
       </div>
       <div class="worker-nav">
         <button class="btn btn-secondary" onclick="showScreen('screen-vendor')">← 戻る</button>
@@ -426,6 +433,18 @@ async function init() {
     await loadVendors();
     initSig();
     initNextDateLabels();
+
+    // KYから引き継いで業者直行（?vendor=...&start=today）
+    const vParam = params.get('vendor');
+    if (vParam) {
+      const vendors = await Storage.getVendors(currentSite.number);
+      const v = vendors.find(x => x.id === vParam);
+      if (v) {
+        selectedVendor = v;
+        if (params.get('start') === 'today') { await startToday(); }
+        else { showModeSelect(); }
+      }
+    }
   } finally {
     App.loading(false);
   }
@@ -472,6 +491,15 @@ function showModeSelect() {
 }
 
 // ---- 今日モード開始 ----
+function goKy() {
+  if (!selectedVendor) return;
+  const q = 'site=' + encodeURIComponent(currentSite.number)
+    + '&vendor=' + encodeURIComponent(selectedVendor.id)
+    + '&vname=' + encodeURIComponent(selectedVendor.name)
+    + (DEMO ? '&demo=1' : '');
+  location.href = 'ky-worker.html?' + q;
+}
+
 async function startToday() {
   // 今日の日報から前回登録データを読み込んで自動入力
   const report = await Storage.getReport(currentSite.number, today);
@@ -495,6 +523,17 @@ async function startToday() {
     document.getElementById('today-fire-check').checked = todayFire;
     document.getElementById('today-fire-toggle').classList.toggle('active', todayFire);
   }
+
+  // KY（本日・この業者）があれば作業内容を反映（KYを優先）
+  try {
+    const ky = await Storage.getKyFor(currentSite.number, selectedVendor.id, today);
+    if (ky && ky.workContent) {
+      document.getElementById('today-work').value = ky.workContent;
+      preloaded = true;
+      const note = document.getElementById('today-preload-note');
+      if (note) note.textContent = '📋 KYの作業内容を反映しました。確認・修正してください。';
+    }
+  } catch (e) { /* KY連動は任意。失敗しても日報入力は続行 */ }
 
   document.getElementById('today-workers-disp').textContent = todayWorkers;
   document.getElementById('today-vehicles-disp').textContent = todayVehicles;

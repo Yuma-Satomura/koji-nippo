@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>KY 危険予知活動</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.kw { max-width: 560px; margin: 0 auto; padding: 16px; }
+.head { background:linear-gradient(135deg,#1e3a8a,#1e40af); color:#fff; border-radius:14px; padding:16px; margin-bottom:14px; }
+.head .s { font-size:13px; opacity:.85; } .head .v { font-size:19px; font-weight:800; } .head .d { font-size:13px; opacity:.85; margin-top:2px; }
+.card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; margin-bottom:14px; }
+.card h2 { font-size:14px; color:#1e40af; margin:0 0 10px; }
+.field { margin-bottom:12px; } .field:last-child { margin-bottom:0; }
+.field label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:5px; }
+.field input, .field textarea, .field select { width:100%; box-sizing:border-box; padding:10px 12px; font-size:15px; border:1.5px solid #cbd5e1; border-radius:9px; }
+.hz { border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:10px; }
+.hz-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.hz-no { font-weight:800; color:#1e40af; }
+.ps-row { display:flex; gap:8px; align-items:flex-end; }
+.ps-row .field { flex:1; margin-bottom:0; }
+.risk-badge { font-size:12px; font-weight:800; padding:4px 8px; border-radius:8px; white-space:nowrap; text-align:center; align-self:center; margin-top:18px; }
+.r1,.r2 { background:#dcfce7; color:#15803d; } .r3 { background:#fef9c3; color:#a16207; } .r4,.r5 { background:#fee2e2; color:#b91c1c; } .r0 { background:#f1f5f9; color:#94a3b8; }
+.q-row { display:flex; gap:8px; margin-bottom:8px; } .q-row .field { flex:1; margin-bottom:0; }
+.addbtn { background:none; border:1px dashed #94a3b8; border-radius:9px; padding:9px; width:100%; color:#1e40af; font-weight:600; cursor:pointer; font-size:14px; }
+.v-item { padding:8px 0; border-bottom:1px solid #f1f5f9; } .v-item:last-child { border-bottom:0; }
+.v-haz { font-weight:600; font-size:14px; } .v-meas { font-size:13px; color:#475569; margin-top:3px; } .v-meta { font-size:12px; margin-top:3px; }
+.signer { display:inline-flex; align-items:center; gap:6px; background:#f1f5f9; border-radius:999px; padding:4px 10px; margin:3px 4px 3px 0; font-size:13px; }
+.signer img { height:24px; }
+#sig-canvas, #foreman-canvas { width:100%; height:180px; border:1.5px solid #cbd5e1; border-radius:9px; touch-action:none; }
+.done-screen { text-align:center; padding:48px 16px; display:none; } .done-screen .ico { font-size:56px; }
+.btn-xl { width:100%; padding:14px; font-size:16px; }
+.hint { font-size:11px; color:#64748b; }
+</style>
+</head>
+<body>
+<div class="kw">
+  <div class="head">
+    <div class="s" id="h-site">—</div>
+    <div class="v" id="h-vendor">—</div>
+    <div class="d" id="h-date">—</div>
+  </div>
+
+  <!-- 記入（職長） -->
+  <div id="screen-fill" style="display:none;">
+    <div class="card">
+      <h2>KY記入（職長・現場責任者）</h2>
+      <div class="field"><label>作業内容</label><textarea id="f-work" rows="2"></textarea></div>
+      <div class="field"><label>大西熱学からの指示事項（安全・作業）<span class="hint">　※管理者が入力</span></label>
+        <div id="f-inst-view" style="padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; min-height:40px; white-space:pre-wrap; font-size:14px; color:#334155;"></div></div>
+      <div class="field"><label>本日の行動目標</label><input type="text" id="f-goal"></div>
+      <div class="field"><label>会社名（グループ名）</label><input type="text" id="f-company"></div>
+    </div>
+    <div class="card">
+      <h2>危険性の評価と対策</h2>
+      <div class="hint" style="margin-bottom:10px;">可能性・重大性を選ぶと危険度(1〜5)が自動表示。最低3項目以上。</div>
+      <div id="hazards"></div>
+      <button class="addbtn" onclick="addHazard()">＋ 危険ポイントを追加</button>
+    </div>
+    <div class="card">
+      <h2>本日の有資格作業及び作業者</h2>
+      <div id="quals"></div>
+      <button class="addbtn" onclick="addQual()">＋ 行を追加</button>
+    </div>
+    <div class="card">
+      <h2>職長・現場責任者の署名</h2>
+      <div class="field"><label>職長氏名</label><input type="text" id="f-foreman-name"></div>
+      <div class="field" style="margin-bottom:8px;"><label>署名</label><canvas id="foreman-canvas"></canvas></div>
+      <button class="btn btn-ghost btn-sm" onclick="clearForeman()">署名クリア</button>
+    </div>
+    <button class="btn btn-primary btn-xl" onclick="saveFill()">登録する</button>
+    <button class="btn btn-secondary btn-xl" style="margin-top:8px; display:none;" id="fill-cancel" onclick="showView()">キャンセル</button>
+  </div>
+
+  <!-- 確認＋署名（作業員） -->
+  <div id="screen-view" style="display:none;">
+    <div class="card">
+      <h2>作業内容・行動目標</h2>
+      <div style="font-size:14px; white-space:pre-wrap;" id="v-work"></div>
+      <div style="font-size:13px; color:#475569; margin-top:8px;" id="v-goal"></div>
+      <div style="font-size:13px; color:#b45309; margin-top:8px;" id="v-inst"></div>
+    </div>
+    <div class="card">
+      <h2>危険のポイントと対策</h2>
+      <div id="v-hazards"></div>
+    </div>
+    <div class="card" id="v-qual-card">
+      <h2>有資格作業及び作業者</h2>
+      <div id="v-quals" style="font-size:14px;"></div>
+    </div>
+    <div class="card">
+      <h2>職長・現場責任者</h2>
+      <div id="v-foreman"><span class="hint">未登録</span></div>
+    </div>
+    <div class="card">
+      <h2>署名済みの作業員</h2>
+      <div id="v-signers"><span class="hint">まだ署名がありません</span></div>
+    </div>
+    <button class="btn btn-primary btn-xl" onclick="showSign()">✍️ 内容を確認して署名する</button>
+    <button class="btn btn-secondary btn-xl" style="margin-top:8px;" onclick="showFill(true)">内容を編集（職長）</button>
+    <button class="btn btn-worker-primary btn-xl" style="margin-top:8px; background:#15803d;" onclick="goReport()">📝 日報の入力へ進む（職長）→</button>
+  </div>
+
+  <!-- 署名入力 -->
+  <div id="screen-sign" style="display:none;">
+    <div class="card">
+      <h2>署名</h2>
+      <div class="field"><label>氏名（フルネーム）</label><input type="text" id="sg-name"></div>
+      <div class="field"><label>署名</label><canvas id="sig-canvas"></canvas></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" style="flex:1;" onclick="clearSig()">クリア</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="showView()">戻る</button>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-xl" onclick="submitSign()">署名を送信</button>
+  </div>
+
+  <div class="done-screen" id="screen-done">
+    <div class="ico">✅</div>
+    <div style="font-size:20px; font-weight:800; margin-top:10px;" id="done-title">完了しました</div>
+    <div style="color:#64748b; margin-top:8px;"><a href="#" onclick="location.reload();return false;">続けて操作する</a></div>
+  </div>
+
+  <div id="screen-error" style="display:none; text-align:center; padding:48px 16px; color:#64748b;">
+    QRコードが正しくありません。<br>現場のQRから業者を選び直してください。
+  </div>
+</div>
+
+<div id="page-loading" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:9998;align-items:center;justify-content:center;"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+<script src="js/signature.js"></script>
+<script>
+const SYM = { '○': 1, '△': 2, '×': 3 };
+const JUDGE = { 5: '即座に対策', 4: '抜本的対策', 3: '何らかの対策', 2: '注意を要する', 1: '現時点では対策不要', 0: '' };
+function calcLevel(p, s) { if (!p || !s) return 0; return (SYM[p] || 0) + (SYM[s] || 0) - 1; }
+
+const params = new URLSearchParams(location.search);
+const siteNumber = params.get('site');
+const vendorId = params.get('vendor');
+const vendorName = params.get('vname') || '';
+const today = App.today();
+let ky = null;
+let sigPad = null;
+let foremanPad = null;
+let siteName = '';          // 登録現場の工事名（現場ごと）
+let adminInstruction = '';  // 大西熱学からの指示事項（管理者が前もって入力）
+
+function show(id) { ['screen-fill','screen-view','screen-sign','screen-done','screen-error'].forEach(s => document.getElementById(s).style.display = s === id ? '' : 'none'); }
+
+async function init() {
+  if (!siteNumber || !vendorId) { show('screen-error'); return; }
+  App.loading(true);
+  try {
+    const sites = await Storage.getSites();
+    const site = sites.find(s => s.number === siteNumber);
+    siteName = site ? site.name : '';
+    document.getElementById('h-site').textContent = '【' + siteNumber + '】' + siteName;
+    document.getElementById('h-vendor').textContent = vendorName;
+    document.getElementById('h-date').textContent = App.formatDate(today);
+
+    adminInstruction = await Storage.getKyInstruction(siteNumber, vendorId, today);
+    ky = await Storage.getKyFor(siteNumber, vendorId, today);
+    if (ky) { showView(); } else { showFill(false); }
+  } catch (e) { App.handleError(e, '読み込みに失敗しました'); }
+  finally { App.loading(false); }
+}
+
+function newHazard() { return { hazard:'', possibility:'', severity:'', measure:'', possibilityAfter:'', severityAfter:'' }; }
+function blankKy() {
+  return { siteNumber, siteName, vendorId, vendorName, date: today, workContent:'', instructions:'', actionGoal:'', companyName: vendorName,
+    hazards:[newHazard(),newHazard(),newHazard()], quals:[{qual:'',worker:''},{qual:'',worker:''},{qual:'',worker:''}], workers:[] };
+}
+
+// ===== 記入（職長） =====
+function showFill(fromView) {
+  const base = (fromView && ky) ? ky : (ky || blankKy());
+  editing = JSON.parse(JSON.stringify(base));
+  if (!editing.hazards || !editing.hazards.length) editing.hazards = [newHazard(),newHazard(),newHazard()];
+  if (!editing.quals || !editing.quals.length) editing.quals = [{qual:'',worker:''},{qual:'',worker:''},{qual:'',worker:''}];
+  document.getElementById('f-work').value = editing.workContent || '';
+  document.getElementById('f-inst-view').textContent = adminInstruction || '（管理者による指示事項は未入力）';
+  document.getElementById('f-goal').value = editing.actionGoal || '';
+  document.getElementById('f-company').value = editing.companyName || vendorName;
+  document.getElementById('f-foreman-name').value = (editing.foreman && editing.foreman.name) || '';
+  document.getElementById('fill-cancel').style.display = ky ? '' : 'none';
+  renderHazards(); renderQuals();
+  show('screen-fill');
+  // 職長署名パッド（画面表示後に初期化）
+  if (!foremanPad) foremanPad = new SignaturePad(document.getElementById('foreman-canvas'), { lineWidth: 3 });
+  foremanPad.clear();
+  if (editing.foreman && editing.foreman.signature) foremanPad.fromDataURL(editing.foreman.signature);
+}
+function clearForeman() { if (foremanPad) foremanPad.clear(); }
+let editing = null;
+function opt(cur) { return ['','○','△','×'].map(v => `<option value="${v}" ${v===cur?'selected':''}>${v||'―'}</option>`).join(''); }
+function renderHazards() {
+  document.getElementById('hazards').innerHTML = editing.hazards.map((h,i) => {
+    const lv = calcLevel(h.possibility,h.severity), lvA = calcLevel(h.possibilityAfter,h.severityAfter);
+    return `<div class="hz">
+      <div class="hz-head"><span class="hz-no">No.${i+1}</span>
+        <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="delHazard(${i})">削除</button></div>
+      <div class="field"><label>予測される危険性・有害性</label><textarea rows="2" oninput="editing.hazards[${i}].hazard=this.value">${App.escHtml(h.hazard)}</textarea></div>
+      <div class="ps-row">
+        <div class="field"><label>可能性</label><select onchange="editing.hazards[${i}].possibility=this.value;renderHazards()">${opt(h.possibility)}</select></div>
+        <div class="field"><label>重大性</label><select onchange="editing.hazards[${i}].severity=this.value;renderHazards()">${opt(h.severity)}</select></div>
+        <span class="risk-badge r${lv}">危険度 ${lv||'―'}<br><span style="font-weight:400;font-size:10px;">${JUDGE[lv]}</span></span>
+      </div>
+      <div class="field" style="margin-top:8px;"><label>対策（否定語はさける）</label><textarea rows="2" oninput="editing.hazards[${i}].measure=this.value">${App.escHtml(h.measure)}</textarea></div>
+      <div class="ps-row">
+        <div class="field"><label>対策後 可能性</label><select onchange="editing.hazards[${i}].possibilityAfter=this.value;renderHazards()">${opt(h.possibilityAfter)}</select></div>
+        <div class="field"><label>対策後 重大性</label><select onchange="editing.hazards[${i}].severityAfter=this.value;renderHazards()">${opt(h.severityAfter)}</select></div>
+        <span class="risk-badge r${lvA}">対策後 ${lvA||'―'}</span>
+      </div></div>`;
+  }).join('');
+}
+function addHazard() { editing.hazards.push(newHazard()); renderHazards(); }
+function delHazard(i) { editing.hazards.splice(i,1); renderHazards(); }
+function renderQuals() {
+  document.getElementById('quals').innerHTML = editing.quals.map((q,i) => `
+    <div class="q-row">
+      <div class="field"><input type="text" placeholder="資格作業" value="${App.escHtml(q.qual)}" oninput="editing.quals[${i}].qual=this.value"></div>
+      <div class="field"><input type="text" placeholder="作業者" value="${App.escHtml(q.worker)}" oninput="editing.quals[${i}].worker=this.value"></div>
+    </div>`).join('');
+}
+function addQual() { editing.quals.push({qual:'',worker:''}); renderQuals(); }
+
+async function saveFill() {
+  const foremanName = document.getElementById('f-foreman-name').value.trim();
+  const foremanSig = foremanPad ? foremanPad.toDataURL() : null;
+  if (!foremanName) { App.toast('職長氏名を入力してください', 'warning'); return; }
+  if (!foremanSig)  { App.toast('職長の署名をしてください', 'warning'); return; }
+
+  editing.workContent = document.getElementById('f-work').value;
+  editing.instructions = adminInstruction;  // 管理者入力の指示事項を記録に保存
+  editing.actionGoal = document.getElementById('f-goal').value;
+  editing.companyName = document.getElementById('f-company').value;
+  editing.foreman = { name: foremanName, signature: foremanSig };
+  editing.hazards.forEach(h => { h.level = calcLevel(h.possibility,h.severity); h.levelAfter = calcLevel(h.possibilityAfter,h.severityAfter); h.judge = JUDGE[h.level]; });
+  editing.siteNumber = siteNumber; editing.siteName = siteName; editing.vendorId = vendorId; editing.vendorName = vendorName; editing.date = today;
+  App.loading(true);
+  try {
+    await Storage.saveKyWorker(editing);
+    ky = await Storage.getKyFor(siteNumber, vendorId, today);
+    App.toast('KYを登録しました');
+    showView();
+  } catch (e) { App.handleError(e, '登録に失敗しました'); }
+  finally { App.loading(false); }
+}
+
+// ===== 確認表示 =====
+function showView() {
+  document.getElementById('v-work').textContent = ky.workContent || '（作業内容未記入）';
+  document.getElementById('v-goal').textContent = ky.actionGoal ? '行動目標：' + ky.actionGoal : '';
+  document.getElementById('v-inst').textContent = ky.instructions ? '指示事項：' + ky.instructions : '';
+  document.getElementById('v-hazards').innerHTML = (ky.hazards||[]).filter(h=>h.hazard).map((h,i)=>{
+    const lv = h.level || calcLevel(h.possibility,h.severity);
+    return `<div class="v-item">
+      <div class="v-haz">${i+1}. ${App.escHtml(h.hazard)} <span class="risk-badge r${lv}" style="margin:0;display:inline-block;">危険度${lv||'―'}</span></div>
+      ${h.measure ? `<div class="v-meas">→ 対策：${App.escHtml(h.measure)}</div>` : ''}
+    </div>`;
+  }).join('') || '<span class="hint">危険ポイント未記入</span>';
+  const quals = (ky.quals||[]).filter(q=>q.qual||q.worker);
+  document.getElementById('v-qual-card').style.display = quals.length ? '' : 'none';
+  document.getElementById('v-quals').innerHTML = quals.map(q=>`${App.escHtml(q.qual)}：${App.escHtml(q.worker)}`).join('<br>');
+  const fm = ky.foreman;
+  document.getElementById('v-foreman').innerHTML = fm && fm.name
+    ? `<span class="signer">${App.escHtml(fm.name)}${fm.signature?`<img src="${fm.signature}">`:''}</span>`
+    : '<span class="hint">未登録</span>';
+  renderSigners();
+  show('screen-view');
+}
+function renderSigners() {
+  const ws = ky.workers || [];
+  const el = document.getElementById('v-signers');
+  el.innerHTML = ws.length ? ws.map(w=>`<span class="signer">${App.escHtml(w.name)}${w.signature?`<img src="${w.signature}">`:''}</span>`).join('') : '<span class="hint">まだ署名がありません</span>';
+}
+
+// ===== 署名 =====
+function showSign() {
+  show('screen-sign');
+  if (!sigPad) sigPad = new SignaturePad(document.getElementById('sig-canvas'), { lineWidth: 3 });
+  sigPad.clear();
+  document.getElementById('sg-name').value = '';
+}
+function goReport() {
+  const q = 'site=' + encodeURIComponent(siteNumber)
+    + '&vendor=' + encodeURIComponent(vendorId)
+    + '&vname=' + encodeURIComponent(vendorName)
+    + '&start=today'
+    + (new URLSearchParams(location.search).has('demo') ? '&demo=1' : '');
+  location.href = 'worker.html?' + q;
+}
+
+function clearSig() { if (sigPad) sigPad.clear(); }
+async function submitSign() {
+  const name = document.getElementById('sg-name').value.trim();
+  if (!name) { App.toast('氏名を入力してください', 'warning'); return; }
+  const sig = sigPad ? sigPad.toDataURL() : null;
+  if (!sig) { App.toast('署名してください', 'warning'); return; }
+  App.loading(true);
+  try {
+    await Storage.signKy(siteNumber, vendorId, today, { name, signature: sig });
+    ky = await Storage.getKyFor(siteNumber, vendorId, today);
+    document.getElementById('done-title').textContent = name + ' さんの署名を受け付けました';
+    show('screen-done');
+  } catch (e) { App.handleError(e, '署名の送信に失敗しました'); }
+  finally { App.loading(false); }
+}
+
+init();
+</script>
+</body>
+</html>

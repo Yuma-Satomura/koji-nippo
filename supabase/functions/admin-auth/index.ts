@@ -121,6 +121,37 @@ Deno.serve(async (req: Request) => {
         if (!isAdmin) return forbidden();
         await supabase.from('equipment').delete().eq('id', data.id);
         break;
+      case 'saveKy': {
+        const ky = data.ky as Record<string, unknown>;
+        if (!(await canEditSite(ky.siteNumber as string))) return forbidden();
+        await supabase.from('ky_records').upsert({
+          id: ky.id,
+          site_number: ky.siteNumber,
+          date: ky.date,
+          data: ky,
+          updated_at: new Date().toISOString()
+        });
+        break;
+      }
+      case 'deleteKy':
+        if (!(await canEditSite(data.siteNumber as string))) return forbidden();
+        await supabase.from('ky_records').delete().eq('id', data.id);
+        break;
+      case 'saveKyInstruction':
+        if (!(await canEditSite(data.siteNumber as string))) return forbidden();
+        await supabase.from('ky_instructions').upsert({
+          site_number: data.siteNumber,
+          date: data.date,
+          vendor_id: data.vendorId ?? '__ALL__',
+          instructions: data.instructions ?? '',
+          updated_at: new Date().toISOString()
+        });
+        break;
+      case 'deleteKyInstruction':
+        if (!(await canEditSite(data.siteNumber as string))) return forbidden();
+        await supabase.from('ky_instructions').delete()
+          .eq('site_number', data.siteNumber).eq('date', data.date).eq('vendor_id', data.vendorId);
+        break;
       default:
         return json({ error: 'Unknown action' }, 400);
     }

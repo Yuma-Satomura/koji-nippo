@@ -1,0 +1,411 @@
+<title>現場管理プラットフォーム化 ロードマップ</title>
+<style>
+  :root {
+    --ground:#EEF1F5; --surface:#FFFFFF; --surface-2:#F7F9FB;
+    --ink:#1A1F28; --ink-2:#44505F; --faint:#6B7888;
+    --line:#D6DEE7; --line-strong:#B9C4D0;
+    --accent:#2E5AAC; --accent-soft:#E4ECF8;
+    --good:#2F8F5B; --good-soft:#E1F1E8;
+    --warn:#B9792A; --warn-soft:#F6ECD9;
+    --hold:#8A94A1; --hold-soft:#EBEEF2;
+    --font-sans:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI",Meiryo,"Noto Sans JP",sans-serif;
+    --font-mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+    --maxw:860px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#10131A; --surface:#171C25; --surface-2:#1E2530;
+      --ink:#E7ECF3; --ink-2:#AEB9C7; --faint:#7E8A99;
+      --line:#2A313D; --line-strong:#3A4452;
+      --accent:#6E9BE8; --accent-soft:#1E2A42;
+      --good:#5FB889; --good-soft:#15251D;
+      --warn:#D6A456; --warn-soft:#2A2113;
+      --hold:#6E7684; --hold-soft:#1C222B;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground:#EEF1F5; --surface:#FFFFFF; --surface-2:#F7F9FB;
+    --ink:#1A1F28; --ink-2:#44505F; --faint:#6B7888;
+    --line:#D6DEE7; --line-strong:#B9C4D0;
+    --accent:#2E5AAC; --accent-soft:#E4ECF8;
+    --good:#2F8F5B; --good-soft:#E1F1E8;
+    --warn:#B9792A; --warn-soft:#F6ECD9;
+    --hold:#8A94A1; --hold-soft:#EBEEF2;
+  }
+  :root[data-theme="dark"] {
+    --ground:#10131A; --surface:#171C25; --surface-2:#1E2530;
+    --ink:#E7ECF3; --ink-2:#AEB9C7; --faint:#7E8A99;
+    --line:#2A313D; --line-strong:#3A4452;
+    --accent:#6E9BE8; --accent-soft:#1E2A42;
+    --good:#5FB889; --good-soft:#15251D;
+    --warn:#D6A456; --warn-soft:#2A2113;
+    --hold:#6E7684; --hold-soft:#1C222B;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--font-sans); line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:28px 28px;
+    background-position:-1px -1px;
+  }
+  @media (prefers-color-scheme: dark){
+    body { background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); }
+  }
+  :root[data-theme="dark"] body { background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); }
+  :root[data-theme="light"] body { background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px); }
+
+  .wrap { max-width:var(--maxw); margin:0 auto; padding:32px 22px 80px; }
+
+  /* ---- title block (製図表題欄) ---- */
+  .titleblock {
+    background:var(--surface); border:1.5px solid var(--line-strong);
+    display:grid; grid-template-columns:1fr; margin-bottom:38px;
+  }
+  .tb-main { padding:26px 26px 22px; border-bottom:1.5px solid var(--line-strong); }
+  .tb-eyebrow {
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 10px;
+  }
+  .tb-main h1 {
+    font-size:clamp(23px,4.2vw,34px); line-height:1.3; margin:0; font-weight:800;
+    letter-spacing:.01em; text-wrap:balance;
+  }
+  .tb-sub { margin:12px 0 0; color:var(--ink-2); font-size:14.5px; max-width:62ch; }
+  .tb-meta { display:grid; grid-template-columns:repeat(4,1fr); }
+  .tb-cell { padding:12px 16px; border-right:1.5px solid var(--line-strong); }
+  .tb-cell:last-child { border-right:0; }
+  .tb-cell .k {
+    font-family:var(--font-mono); font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--faint); display:block; margin-bottom:4px;
+  }
+  .tb-cell .v { font-size:13.5px; font-weight:600; }
+  @media (max-width:560px){
+    .tb-meta { grid-template-columns:repeat(2,1fr); }
+    .tb-cell:nth-child(2){ border-right:0; }
+    .tb-cell:nth-child(1),.tb-cell:nth-child(2){ border-bottom:1.5px solid var(--line-strong); }
+  }
+
+  section { margin:40px 0 0; }
+  h2 {
+    font-size:12px; font-family:var(--font-mono); letter-spacing:.16em;
+    text-transform:uppercase; color:var(--faint); font-weight:700;
+    margin:0 0 16px; padding-bottom:9px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:10px;
+  }
+  h2 .no { color:var(--accent); }
+  h3 { font-size:16.5px; margin:0 0 6px; font-weight:700; letter-spacing:.01em; }
+  p { margin:0 0 14px; }
+  .lead { font-size:15.5px; color:var(--ink-2); }
+
+  /* ---- callout ---- */
+  .callout {
+    background:var(--accent-soft); border-left:3px solid var(--accent);
+    padding:16px 20px; margin:4px 0 8px; border-radius:0 3px 3px 0;
+  }
+  .callout strong { color:var(--accent); }
+  .callout p:last-child { margin-bottom:0; }
+
+  /* ---- phase track ---- */
+  .track { margin-top:6px; }
+  .phase {
+    position:relative; padding:0 0 26px 58px; border-left:1.5px solid var(--line-strong);
+    margin-left:19px;
+  }
+  .phase:last-child { border-left-color:transparent; padding-bottom:4px; }
+  .node {
+    position:absolute; left:-20px; top:-2px; width:38px; height:38px;
+    background:var(--surface); border:1.5px solid var(--line-strong);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-mono); font-size:13px; font-weight:700; color:var(--ink-2);
+  }
+  .phase.is-lead .node { border-color:var(--accent); color:var(--accent); }
+  .phase.is-hold .node { border-style:dashed; color:var(--hold); }
+  .phase-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:7px; }
+  .phase-body { color:var(--ink-2); font-size:14.5px; }
+  .phase-body .tag {
+    display:inline-block; font-family:var(--font-mono); font-size:11.5px;
+    color:var(--ink); background:var(--surface-2); border:1px solid var(--line);
+    padding:1px 7px; margin:3px 5px 3px 0; border-radius:3px;
+  }
+
+  .chip {
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; font-weight:700; padding:3px 9px; border-radius:3px;
+    white-space:nowrap;
+  }
+  .chip.ready { background:var(--accent-soft); color:var(--accent); }
+  .chip.step  { background:var(--surface-2); color:var(--ink-2); border:1px solid var(--line); }
+  .chip.hold  { background:var(--hold-soft); color:var(--hold); }
+
+  /* ---- tables ---- */
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); background:var(--surface); border-radius:4px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th,td { text-align:left; padding:11px 15px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th {
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--faint); font-weight:700; background:var(--surface-2); white-space:nowrap;
+  }
+  tr:last-child td { border-bottom:0; }
+  td strong { font-weight:700; }
+  td .mono { font-family:var(--font-mono); font-size:12.5px; }
+
+  /* ---- two-column cards ---- */
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:620px){ .cols { grid-template-columns:1fr; } }
+  .card {
+    background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:18px 20px;
+  }
+  .card .lbl {
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--accent); margin-bottom:8px;
+  }
+  .card ul { margin:8px 0 0; padding-left:18px; color:var(--ink-2); font-size:14px; }
+  .card li { margin-bottom:5px; }
+  .card .setup { margin-top:12px; font-size:12.5px; color:var(--faint); font-family:var(--font-mono); }
+
+  /* ---- do / dont ---- */
+  .scope { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:620px){ .scope { grid-template-columns:1fr; } }
+  .scope ul { list-style:none; margin:0; padding:0; }
+  .scope li { padding:7px 0 7px 26px; position:relative; font-size:14.5px; border-bottom:1px solid var(--line); }
+  .scope li:last-child { border-bottom:0; }
+  .scope li::before { position:absolute; left:0; top:7px; font-family:var(--font-mono); font-weight:700; }
+  .do li::before    { content:"✓"; color:var(--good); }
+  .dont li::before  { content:"✕"; color:var(--hold); }
+  .dont li { color:var(--faint); }
+  .box-h { font-size:12px; font-family:var(--font-mono); letter-spacing:.1em; text-transform:uppercase; margin:0 0 8px; }
+  .box-h.g { color:var(--good); }
+  .box-h.m { color:var(--hold); }
+
+  /* ---- risk list ---- */
+  .risks { list-style:none; margin:0; padding:0; }
+  .risks li {
+    background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--warn);
+    padding:12px 16px; margin-bottom:10px; border-radius:0 4px 4px 0; font-size:14px; color:var(--ink-2);
+  }
+  .risks li b { color:var(--ink); }
+
+  /* ---- next steps ---- */
+  ol.steps { counter-reset:s; list-style:none; margin:0; padding:0; }
+  ol.steps li {
+    position:relative; padding:4px 0 14px 42px; font-size:14.5px; color:var(--ink-2);
+    border-left:1.5px solid var(--line); margin-left:15px;
+  }
+  ol.steps li:last-child { border-left-color:transparent; padding-bottom:0; }
+  ol.steps li::before {
+    counter-increment:s; content:counter(s); position:absolute; left:-15px; top:0;
+    width:30px; height:30px; background:var(--surface); border:1.5px solid var(--accent);
+    color:var(--accent); font-family:var(--font-mono); font-weight:700; font-size:13px;
+    display:flex; align-items:center; justify-content:center; border-radius:50%;
+  }
+  ol.steps li b { color:var(--ink); }
+
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--line);
+    font-family:var(--font-mono); font-size:11px; color:var(--faint); letter-spacing:.06em;
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+
+  .reveal { opacity:0; transform:translateY(10px); animation:rise .6s ease forwards; }
+  @keyframes rise { to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion:reduce){ .reveal { animation:none; opacity:1; transform:none; } }
+</style>
+
+<div class="wrap">
+
+  <header class="titleblock reveal">
+    <div class="tb-main">
+      <p class="tb-eyebrow">現場管理システム / 構想設計</p>
+      <h1>現場管理プラットフォーム化 ロードマップ</h1>
+      <p class="tb-sub">工事日報アプリを、現場管理全般を扱うプラットフォームへ段階的に育てる。土台（認証・マスタ）を先に固め、機能はその上に1領域ずつ積む。</p>
+    </div>
+    <div class="tb-meta">
+      <div class="tb-cell"><span class="k">文書</span><span class="v">設計方針書</span></div>
+      <div class="tb-cell"><span class="k">対象</span><span class="v">koji-nippo</span></div>
+      <div class="tb-cell"><span class="k">基準日</span><span class="v">2026-10</span></div>
+      <div class="tb-cell"><span class="k">状態</span><span class="v">構想・未着手</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="no">01</span> 全体方針</h2>
+    <p class="lead">現状は日報専用。これを <strong>現場管理全般</strong> を担うアプリへ拡張する。<strong>このアプリ1つに集約</strong>し、<strong>社員ごとのアカウント</strong>を持って<strong>役割（管理者／担当者）で権限を分ける</strong>。</p>
+    <div class="callout">
+      <p>これは「日報アプリへの機能追加」ではなく <strong>プラットフォームへの作り替え</strong>。機能を足す前に、認証とマスタの土台を入れ替えることが成功の鍵になる。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="no">02</span> やること / 対象外</h2>
+    <div class="scope">
+      <div>
+        <p class="box-h g">対象</p>
+        <ul class="do">
+          <li>機械・重機のQR点検記録</li>
+          <li>社員アカウント＋役割</li>
+          <li>安全・職人管理（作業員名簿・KY・安全書類）</li>
+          <li>書式テンプレート機能（元請PDF／自社・KY）</li>
+          <li>工程・スケジュール管理</li>
+          <li>原価・費用・発注管理</li>
+        </ul>
+      </div>
+      <div>
+        <p class="box-h m">対象外</p>
+        <ul class="dont">
+          <li>勤怠管理 — 別ソフトを使用中</li>
+          <li>写真・図面管理 — 別アプリを使用中。余裕があれば将来検討</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="no">03</span> 実行フェーズ</h2>
+    <div class="track">
+
+      <div class="phase is-lead">
+        <div class="node">▶</div>
+        <div class="phase-head"><span class="chip ready">先行着手OK</span><h3>機械・重機のQR点検記録</h3></div>
+        <div class="phase-body">
+          既存のQR＋匿名入力の仕組みを横展開するだけ。4領域で最も早く形になる独立機能で、土台を待たずに着手できる。
+          <div><span class="tag">機械マスタ・QR発行</span><span class="tag">点検記録・署名</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="node">0</div>
+        <div class="phase-head"><span class="chip step">フェーズ0</span><h3>土台</h3></div>
+        <div class="phase-body">
+          全機能が乗る背骨。認証を「PIN＋匿名職人」から「ログイン社員＋役割（RLS）」へ入れ替える。職人のQR入力は匿名のまま維持。
+          <div><span class="tag">社員アカウント＋役割</span><span class="tag">現場／社員／機械マスタ共通化</span><span class="tag">既存日報の載せ替え</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="node">1</div>
+        <div class="phase-head"><span class="chip step">フェーズ1</span><h3>安全・職人管理</h3></div>
+        <div class="phase-body">
+          作業員名簿・KY・安全書類。横断機能として書式テンプレート機能をここで用意する。
+          <div><span class="tag">作業員名簿</span><span class="tag">KY</span><span class="tag">書式テンプレート機能</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="node">2</div>
+        <div class="phase-head"><span class="chip step">フェーズ2</span><h3>工程・スケジュール</h3></div>
+        <div class="phase-body">
+          既存の工程表アプリ（koujitei-gantt）をこのアプリへ集約し、現場・社員マスタを一本化する。
+          <div><span class="tag">工程表の集約</span><span class="tag">マスタ一本化</span></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="node">3</div>
+        <div class="phase-head"><span class="chip step">フェーズ3</span><h3>原価・費用・発注</h3></div>
+        <div class="phase-body">
+          契約金額・業者への発注・支払い・実行コストの管理。
+          <div><span class="tag">契約・発注</span><span class="tag">支払い</span><span class="tag">実行コスト</span></div>
+        </div>
+      </div>
+
+      <div class="phase is-hold">
+        <div class="node">—</div>
+        <div class="phase-head"><span class="chip hold">保留</span><h3>写真・図面</h3></div>
+        <div class="phase-body">
+          別アプリ併用で当面OK。取り込む段階になると容量（Storage／有料プラン）要因が増えるため、後回しが有利。
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="no">04</span> 書式テンプレート機能</h2>
+    <p class="lead">KY・作業員名簿・元請書式を同じ仕組みで扱う横断機能。書式の性質で2方式を使い分ける。</p>
+    <div class="cols">
+      <div class="card">
+        <div class="lbl">自社書式・KY</div>
+        <h3>自前でレイアウト生成</h3>
+        <ul>
+          <li>今の日報PDFと同じ方式で組む</li>
+          <li>レイアウトを自分たちで作れる</li>
+        </ul>
+        <div class="setup">初期設定：不要</div>
+      </div>
+      <div class="card">
+        <div class="lbl">元請の既存書式</div>
+        <h3>元PDFに重ね書き（完全再現）</h3>
+        <ul>
+          <li>元のPDFをそのまま下敷きにする</li>
+          <li>入力値を座標指定で流し込む</li>
+          <li>レイアウトは1ミリも崩れない</li>
+        </ul>
+        <div class="setup">初期設定：書式ごとに欄の位置を1回マッピング</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px;">
+      <p>「どんなPDFでも自動で欄認識」はOCR／AI領域で精度が不安定なため採用しない。<strong>次アクション：実物の元請書式PDFを数種類入手</strong>し、マッピングの実例を作る。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="no">05</span> 現状（2026-10）</h2>
+    <div class="tablewrap">
+      <table>
+        <tr><th>項目</th><th>内容</th></tr>
+        <tr><td>フロント</td><td>素のHTML / CSS / JS（フレームワークなし・ビルドなし）</td></tr>
+        <tr><td>バックエンド</td><td>Supabase（会社アカウント <span class="mono">kouzi-nippo</span> / 東京）</td></tr>
+        <tr><td>ホスティング</td><td>Vercel（会社チーム <span class="mono">oonishi</span> / Hobbyプラン）</td></tr>
+        <tr><td>認証</td><td>管理者PIN 1個 ＋ QRの匿名職人</td></tr>
+        <tr><td>稼働状況</td><td>本番稼働中（現場1件・日報51件）</td></tr>
+      </table>
+    </div>
+    <p style="margin-top:14px; color:var(--ink-2); font-size:14px;">参考：会社の工程表アプリ（<span class="mono" style="font-size:12.5px">koujitei-gantt</span>）はすでに Supabase Auth と社員・役割テーブルで動いており、土台の参考・統合先にできる。</p>
+  </section>
+
+  <section>
+    <h2><span class="no">06</span> コスト・プランへの影響</h2>
+    <div class="tablewrap">
+      <table>
+        <tr><th>サービス</th><th>現在</th><th>本格運用時に必要になる見込み</th></tr>
+        <tr><td><strong>Supabase</strong></td><td>Free（DB 500MB / 2プロジェクトまで）</td><td>データ増・工程表統合・書類で Pro 検討</td></tr>
+        <tr><td><strong>Vercel</strong></td><td>Hobby（<strong>規約上 商用利用不可</strong>）</td><td>社員全員で本格運用するなら Pro</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="no">07</span> リスク・留意点</h2>
+    <ul class="risks">
+      <li><b>稼働中の認証切り替え</b> — 本番稼働中のため、旧PIN運用と新アカウント運用の切替タイミングを慎重に設計する。</li>
+      <li><b>マスタ二重管理</b> — 工程表アプリと現場・社員マスタがバラバラだと破綻する。統合方針を先に固める。</li>
+      <li><b>素のJSの限界</b> — 機能が増えると共通化・状態管理が重くなる。土台整備のタイミングで作り方を一度決める。</li>
+      <li><b>データ移行</b> — 既存日報を新しいマスタ・認証モデルへ載せ替える移行作業が発生する。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">08</span> 次アクション</h2>
+    <ol class="steps">
+      <li>この文書の内容で方針を確定する。</li>
+      <li>先行着手するなら <b>機械QR点検</b> から（土台を待たず動くものを作れる）。</li>
+      <li>元請書式の <b>実物PDFを数種類</b> 入手 → 書式テンプレート機能の設計を具体化。</li>
+      <li>フェーズ0（土台）の詳細設計：テーブル定義・認証移行手順・工程表統合の具体化。</li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>現場管理プラットフォーム化 ロードマップ</span>
+    <span>koji-nippo / rev. 2026-10</span>
+  </footer>
+
+</div>
